@@ -36,8 +36,6 @@ class Alist2Strm:
         sync_server: bool = False,
         sync_ignore: str | None = None,
         smart_protection: dict | None = None,
-        order_by: str = "modified",
-        order_direction: str = "DESC",
         **_,
     ) -> None:
         """
@@ -97,8 +95,6 @@ class Alist2Strm:
         self.__max_downloaders = Semaphore(max_downloaders)
         self.wait_time = wait_time
         self.sync_server = sync_server
-        self.order_by = order_by
-        self.order_direction = order_direction
 
         if sync_ignore:
             self.sync_ignore_pattern = re_compile(sync_ignore)
@@ -212,8 +208,6 @@ class Alist2Strm:
                 wait_time=self.wait_time,
                 is_detail=is_detail,
                 filter=filter,
-                order_by=self.order_by,
-                order_direction=self.order_direction,
             ):
                 scan_count += 1
                 if scan_count % 100 == 0:
