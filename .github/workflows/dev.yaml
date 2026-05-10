@@ -6,7 +6,9 @@ on:
     branches:
       - main
     paths:
-      - '**.py'
+      - 'app/**/*.py'
+      - 'requirements.txt'
+      - 'Dockerfile'
 
 jobs:
   Dev-Docker-Builder:

@@ -1,17 +1,19 @@
-FROM python:3.12.7-alpine
+FROM python:3.12.7-slim-bookworm
 
 ENV TZ=Asia/Shanghai
-VOLUME ["/config", "/logs", "/media","/fonts"]
 
-RUN apk update
-RUN apk add --no-cache build-base linux-headers tzdata
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt && \
+RUN pip install --no-cache-dir -r requirements.txt && \
     rm requirements.txt
 
 COPY app /app
 
-RUN rm -rf /tmp/*
+RUN useradd -r -s /bin/false appuser && \
+    chown -R appuser:appuser /app
+USER appuser
 
 ENTRYPOINT ["python", "/app/main.py"]

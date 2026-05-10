@@ -1,4 +1,4 @@
-from asyncio import get_event_loop
+import asyncio
 from sys import path
 from os.path import dirname
 
@@ -22,9 +22,7 @@ def print_logo() -> None:
     print("")
 
 
-if __name__ == "__main__":
-    print_logo()
-
+async def main() -> None:
     logger.info(f"AutoFilm {settings.APP_VERSION} 启动中...")
     logger.debug(f"是否开启 DEBUG 模式: {settings.DEBUG}")
 
@@ -75,7 +73,13 @@ if __name__ == "__main__":
     scheduler.start()
     logger.info("AutoFilm 启动完成")
 
+    await asyncio.Event().wait()
+
+
+if __name__ == "__main__":
+    print_logo()
+
     try:
-        get_event_loop().run_forever()
+        asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("AutoFilm 程序退出！")

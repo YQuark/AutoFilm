@@ -257,6 +257,8 @@ class HTTPClient:
                 logger.debug(f"{file_path.name} 文件大小未知，直接下载")
                 await self.__download_chunk(url, temp_file, 0, 0, **kwargs)
             else:
+                # 预分配文件以支持并发分片写入
+                await to_thread(self._preallocate_file, temp_file, file_size)
                 async with TaskGroup() as tg:
                     logger.debug(
                         f"开始分片下载文件：{file_path.name}，分片数:{chunk_num}"
@@ -297,10 +299,21 @@ class HTTPClient:
             kwargs["headers"] = headers
 
         resp = await self.get(url, sync=False, **kwargs)
-        async with async_open(file_path, "ab") as file:
+        async with async_open(file_path, "r+b") as file:
             file.seek(start)
             async for chunk in resp.aiter_bytes(iter_chunked_size):
                 await file.write(chunk)
+
+    @staticmethod
+    def _preallocate_file(file_path: Path, size: int) -> None:
+        """
+        预分配指定大小的文件，用于支持并发分片写入
+
+        :param file_path: 文件路径
+        :param size: 文件大小（字节）
+        """
+        with open(file_path, "wb") as f:
+            f.truncate(size)
 
     @staticmethod
     def caculate_divisional_range(

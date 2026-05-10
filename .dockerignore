@@ -3,6 +3,8 @@
 .gitignore
 .dockerignore
 .flake8
+.claude
+.env
 tests
 logs
 config
@@ -10,3 +12,5 @@ config
 LICENSE
 Dockerfile
 docker-compose*.yml
+**/__pycache__
+**/*.pyc

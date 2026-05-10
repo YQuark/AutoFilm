@@ -46,6 +46,6 @@ jobs:
         with:
           tag_name: v${{ needs.Get-Version.outputs.app_version }}
           name: v${{ needs.Get-Version.outputs.app_version }}
-          body: ${{ github.event.commits[0].message }}
+          body: ${{ github.event.commits[0].message || format('Release v{0}', needs.Get-Version.outputs.app_version) }}
           draft: false
           prerelease: false

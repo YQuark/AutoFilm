@@ -168,7 +168,7 @@ class Alist2Strm:
                             f"文件 {local_path.name} 大小不一致，需要重新处理 {path.full_path}"
                         )
                         return True
-                elif path.suffix in self.download_exts:
+                elif path.suffix.lower() in self.download_exts:
                     # 字幕/NFO/other_ext：保留 mtime 判断，size 改为 != 判断
                     local_path_stat = local_path.stat()
                     if local_path_stat.st_mtime < path.modified_timestamp:
