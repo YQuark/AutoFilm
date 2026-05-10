@@ -32,6 +32,7 @@ class Alist2Strm:
         other_ext: str = "",
         max_workers: int = 50,
         max_downloaders: int = 5,
+        scan_concurrency: int = 3,
         wait_time: float | int = 0,
         sync_server: bool = False,
         sync_ignore: str | None = None,
@@ -58,6 +59,7 @@ class Alist2Strm:
         :param other_ext: 自定义下载后缀，使用西文半角逗号进行分割，默认为空
         :param max_workers: 最大并发数
         :param max_downloaders: 最大同时下载
+        :param scan_concurrency: Alist 目录扫描 API 并发数
         :param wait_time: 遍历请求间隔时间，单位为秒，默认为 0
         :param sync_ignore: 同步时忽略的文件正则表达式
         :param smart_protection: 智能保护配置 {enabled: bool, threshold: int, grace_scans: int}
@@ -93,6 +95,7 @@ class Alist2Strm:
         self.overwrite = overwrite
         self.__max_workers = Semaphore(max_workers)
         self.__max_downloaders = Semaphore(max_downloaders)
+        self.scan_concurrency = scan_concurrency
         self.wait_time = wait_time
         self.sync_server = sync_server
 
@@ -202,18 +205,23 @@ class Alist2Strm:
 
         # 第一阶段：收集所有文件信息并直接处理普通文件
         scan_count = 0
-        async with self.__max_workers, TaskGroup() as tg:
+        async def process_with_limit(path: AlistPath) -> None:
+            async with self.__max_workers:
+                await self.__file_processer(path)
+
+        async with TaskGroup() as tg:
             async for path in self.client.iter_path(
                 dir_path=self.source_dir,
                 wait_time=self.wait_time,
                 is_detail=is_detail,
                 filter=filter,
+                concurrency=self.scan_concurrency,
             ):
                 scan_count += 1
                 if scan_count % 100 == 0:
                     logger.info(f"遍历进度：已发现 {scan_count} 个待处理文件 ...")
                 # 直接处理普通文件，不需要额外的 list
-                tg.create_task(self.__file_processer(path))
+                tg.create_task(process_with_limit(path))
         logger.info(f"遍历完成：共发现 {scan_count} 个待处理文件")
 
         # 完成 BDMV 文件收集，确定最大文件

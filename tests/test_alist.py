@@ -5,7 +5,10 @@ path.append(dirname(dirname(__file__)))
 
 import unittest
 import json
-from app.modules.alist import AlistPath
+import asyncio
+from types import SimpleNamespace
+
+from app.modules.alist import AlistClient, AlistPath
 
 
 class TestAlistPath(unittest.TestCase):
@@ -313,6 +316,86 @@ class TestAlistPath(unittest.TestCase):
             self.assertEqual(path.thumb, item["thumb"])
             self.assertEqual(path.type, item["type"])
             self.assertEqual(path.hashinfo, item["hashinfo"])
+
+
+class TestAlistClientIterPath(unittest.IsolatedAsyncioTestCase):
+    """
+    AlistClient.iter_path 测试类
+    """
+
+    @staticmethod
+    def make_path(full_path: str, is_dir: bool) -> AlistPath:
+        return AlistPath(
+            server_url="https://alist.example.com",
+            base_path="",
+            full_path=full_path,
+            name=full_path.rstrip("/").split("/")[-1],
+            size=0,
+            is_dir=is_dir,
+            modified="2025-01-01T00:00:00+00:00",
+            created="2025-01-01T00:00:00+00:00",
+            sign="",
+            thumb="",
+            type=1 if is_dir else 2,
+            hashinfo="",
+        )
+
+    async def test_iter_path_limits_scan_concurrency(self) -> None:
+        tree = {
+            "/": [
+                self.make_path("/A", True),
+                self.make_path("/B", True),
+                self.make_path("/C", True),
+            ],
+            "/A": [
+                self.make_path("/A/A1", True),
+                self.make_path("/A/a.mp4", False),
+            ],
+            "/A/A1": [self.make_path("/A/A1/a1.mp4", False)],
+            "/B": [self.make_path("/B/b.mp4", False)],
+            "/C": [self.make_path("/C/c.mp4", False)],
+        }
+        active_requests = 0
+        peak_requests = 0
+
+        async def track_request() -> None:
+            nonlocal active_requests, peak_requests
+            active_requests += 1
+            peak_requests = max(peak_requests, active_requests)
+            await asyncio.sleep(0.01)
+            active_requests -= 1
+
+        async def async_api_fs_list(dir_path: str) -> list[AlistPath]:
+            await track_request()
+            return tree[dir_path]
+
+        async def async_api_fs_get(path: str) -> AlistPath:
+            await track_request()
+            result = self.make_path(path, False)
+            result.raw_url = f"https://raw.example.com{path}"
+            return result
+
+        client = SimpleNamespace(
+            async_api_fs_list=async_api_fs_list,
+            async_api_fs_get=async_api_fs_get,
+        )
+
+        found = []
+        async for path in AlistClient.iter_path(
+            client,
+            dir_path="/",
+            wait_time=0,
+            is_detail=True,
+            concurrency=2,
+        ):
+            found.append(path)
+
+        self.assertEqual(
+            {path.full_path for path in found},
+            {"/A/a.mp4", "/A/A1/a1.mp4", "/B/b.mp4", "/C/c.mp4"},
+        )
+        self.assertLessEqual(peak_requests, 2)
+        self.assertTrue(all(path.raw_url for path in found))
 
 
 if __name__ == "__main__":

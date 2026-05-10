@@ -6,7 +6,7 @@ from collections.abc import Coroutine
 from tempfile import TemporaryDirectory
 from shutil import copy2
 
-from httpx import AsyncClient, Client, Response, TimeoutException
+from httpx import AsyncClient, Client, Response, TransportError
 from aiofile import async_open
 
 from app.core import settings, logger
@@ -60,29 +60,29 @@ class HTTPClient:
         if self.__async_client:
             await self.__async_client.aclose()
 
-    @Retry.sync_retry(TimeoutException, tries=3, delay=1, backoff=2)
+    @Retry.sync_retry(TransportError, tries=3, delay=1, backoff=2)
     def _sync_request(self, method: str, url: str, **kwargs) -> Response | None:
         """
         发起同步 HTTP 请求
         """
         try:
             return self.__sync_client.request(method, url, **kwargs)
-        except TimeoutException as e:
+        except TransportError as e:
             self.close_sync_client()
             self.__new_sync_client()
-            raise TimeoutException(f"HTTP 请求超时：{e}")
+            raise TransportError(f"HTTP 请求传输异常：{e}")
 
-    @Retry.async_retry(TimeoutException, tries=3, delay=1, backoff=2)
+    @Retry.async_retry(TransportError, tries=3, delay=1, backoff=2)
     async def _async_request(self, method: str, url: str, **kwargs) -> Response | None:
         """
         发起异步 HTTP 请求
         """
         try:
             return await self.__async_client.request(method, url, **kwargs)
-        except TimeoutException as e:
+        except TransportError as e:
             await self.close_async_client()
             self.__new_async_client()
-            raise TimeoutException(f"HTTP 请求超时：{e}")
+            raise TransportError(f"HTTP 请求传输异常：{e}")
 
     @overload
     def request(

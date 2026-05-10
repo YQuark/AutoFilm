@@ -1,4 +1,4 @@
-from asyncio import sleep, Lock, Semaphore, gather
+from asyncio import Queue, TimeoutError, create_task, gather, sleep, wait_for, Lock
 from typing import Callable, AsyncGenerator
 from time import time
 
@@ -389,55 +389,85 @@ class AlistClient(metaclass=Multiton):
         wait_time: float | int,
         is_detail: bool = True,
         filter: Callable[[AlistPath], bool] = lambda x: True,
-        concurrency: int = 10,
+        concurrency: int = 3,
     ) -> AsyncGenerator[AlistPath, None]:
         """
         异步路径列表生成器
         返回目录及其子目录的所有文件和目录的 AlistPath 对象
-        同级子目录使用 asyncio.gather 并行扫描
+        使用有界 worker 队列扫描，避免递归 gather 导致并发失控
 
         :param dir_path: 目录路径
         :param wait_time: 每轮遍历等待时间（单位秒）
         :param is_detail: 是否获取详细信息（raw_url）
         :param filter: 匿名函数过滤器（默认不启用）
-        :param concurrency: 同级子目录并发数，默认 10
+        :param concurrency: Alist API 扫描并发数，默认 3
         :return: AlistPath 对象生成器
         """
 
-        items = await self.async_api_fs_list(dir_path)
-        logger.debug(f"扫描目录 {dir_path}：{len(items)} 个项目")
+        worker_count = max(1, int(concurrency))
+        dir_queue: Queue[str | None] = Queue()
+        result_queue: Queue[AlistPath | Exception] = Queue()
+        await dir_queue.put(dir_path)
 
-        dirs = [p for p in items if p.is_dir]
-        files = [p for p in items if not p.is_dir]
-
-        # 并行扫描所有子目录
-        sem = Semaphore(concurrency)
-
-        async def _scan_one(sub_dir: AlistPath) -> list[AlistPath]:
-            async with sem:
-                results = []
-                async for p in self.iter_path(
-                    sub_dir.full_path, wait_time, is_detail, filter, concurrency
-                ):
-                    results.append(p)
-                return results
-
-        dir_results = await gather(*[_scan_one(d) for d in dirs]) if dirs else []
-
-        # yield 当前目录的文件
-        for path in files:
+        async def _wait_before_request() -> None:
             if wait_time > 0:
                 await sleep(wait_time)
-            if filter(path):
-                if is_detail:
-                    yield await self.async_api_fs_get(path.full_path)
-                else:
-                    yield path
 
-        # yield 子目录结果
-        for results in dir_results:
-            for p in results:
-                yield p
+        async def _worker() -> None:
+            while True:
+                current_dir = await dir_queue.get()
+                try:
+                    if current_dir is None:
+                        return
+
+                    await _wait_before_request()
+                    items = await self.async_api_fs_list(current_dir)
+                    logger.debug(f"扫描目录 {current_dir}：{len(items)} 个项目")
+
+                    for path in items:
+                        if path.is_dir:
+                            await dir_queue.put(path.full_path)
+                            continue
+
+                        if not filter(path):
+                            continue
+
+                        if is_detail:
+                            await _wait_before_request()
+                            path = await self.async_api_fs_get(path.full_path)
+                        await result_queue.put(path)
+                except Exception as e:
+                    await result_queue.put(e)
+                    return
+                finally:
+                    dir_queue.task_done()
+
+        workers = [create_task(_worker()) for _ in range(worker_count)]
+        join_task = create_task(dir_queue.join())
+
+        try:
+            while True:
+                if join_task.done() and result_queue.empty():
+                    break
+
+                try:
+                    result = await wait_for(result_queue.get(), timeout=0.1)
+                except TimeoutError:
+                    continue
+
+                if isinstance(result, Exception):
+                    raise result
+                yield result
+        finally:
+            if not join_task.done():
+                join_task.cancel()
+                for worker in workers:
+                    worker.cancel()
+            else:
+                for _ in workers:
+                    await dir_queue.put(None)
+
+            await gather(*workers, return_exceptions=True)
 
     async def get_storage_by_mount_path(
         self, mount_path: str, create: bool = False, **kwargs
