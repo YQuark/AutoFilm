@@ -169,8 +169,8 @@ class Alist2Strm:
                 if path.suffix.lower() in IMAGE_EXTS:
                     # 图片类：仅按大小判断，忽略 mtime（云存储 mtime 不可靠）
                     if local_stat.st_size != path.size:
-                        logger.debug(
-                            f"文件 {local_path.name} 大小不一致，需要重新处理 {path.full_path}"
+                        logger.warning(
+                            f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
                         )
                         return True
                 elif path.suffix.lower() in self.download_exts:
@@ -181,8 +181,8 @@ class Alist2Strm:
                         )
                         return True
                     if local_stat.st_size != path.size:
-                        logger.debug(
-                            f"文件 {local_path.name} 大小不一致，需要重新处理 {path.full_path}"
+                        logger.warning(
+                            f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
                         )
                         return True
                 logger.debug(
