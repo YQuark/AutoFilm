@@ -15,7 +15,7 @@ jobs:
       app_version: ${{ steps.version.outputs.app_version }}
     steps:
       - name: Clone Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: APP Version
         id: version
