@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from sys import path
 from os.path import dirname
 
@@ -10,6 +11,13 @@ from apscheduler.triggers.cron import CronTrigger  # type:ignore
 from app.core import settings, logger
 from app.extensions import LOGO
 from app.modules import Alist2Strm, Ani2Alist, LibraryPoster
+
+
+class _MaxInstancesFilter(logging.Filter):
+    """抑制 APScheduler max_instances 跳过日志（任务执行时间超过 cron 间隔时的正常行为）"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "maximum number of running instances reached" not in record.getMessage()
 
 
 def print_logo() -> None:
@@ -34,7 +42,9 @@ async def main() -> None:
             cron = server.get("cron")
             if cron:
                 scheduler.add_job(
-                    Alist2Strm(**server).run, trigger=CronTrigger.from_crontab(cron)
+                    Alist2Strm(**server).run,
+                    trigger=CronTrigger.from_crontab(cron),
+                    max_instances=2,
                 )
                 logger.info(f"{server['id']} 已被添加至后台任务")
             else:
@@ -70,6 +80,7 @@ async def main() -> None:
     else:
         logger.warning("未检测到 LibraryPoster 模块配置")
 
+    logging.getLogger("apscheduler.scheduler").addFilter(_MaxInstancesFilter())
     scheduler.start()
     logger.info("AutoFilm 启动完成")
 
