@@ -1,0 +1,12 @@
+.git
+.github
+.gitignore
+.dockerignore
+.flake8
+tests
+logs
+config
+*.md
+LICENSE
+Dockerfile
+docker-compose*.yml

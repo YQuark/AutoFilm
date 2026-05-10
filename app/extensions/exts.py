@@ -10,7 +10,6 @@ VIDEO_EXTS: Final = frozenset(
         ".ts",
         ".rmvb",
         ".webm",
-        ".wmv",
         ".mpg",
         ".m2ts",
     )
@@ -19,6 +18,6 @@ EXTENDED_VIDEO_EXTS: Final = VIDEO_EXTS.union((".strm",))  # 扩展视频文件�
 
 SUBTITLE_EXTS: Final = frozenset((".ass", ".srt", ".ssa", ".sub"))  # 字幕文件后缀
 
-IMAGE_EXTS: Final = frozenset((".png", ".jpg"))
+IMAGE_EXTS: Final = frozenset((".png", ".jpg", ".jpeg", ".webp"))
 
 NFO_EXTS: Final = frozenset((".nfo",))

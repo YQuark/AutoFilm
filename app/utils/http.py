@@ -4,7 +4,7 @@ from os import makedirs
 from asyncio import TaskGroup, to_thread
 from collections.abc import Coroutine
 from tempfile import TemporaryDirectory
-from shutil import copy
+from shutil import copy2
 
 from httpx import AsyncClient, Client, Response, TimeoutException
 from aiofile import async_open
@@ -267,7 +267,7 @@ class HTTPClient:
                         tg.create_task(
                             self.__download_chunk(url, temp_file, start, end, **kwargs)
                         )
-            copy(temp_file, file_path)
+            copy2(temp_file, file_path)
 
     async def __download_chunk(
         self,
@@ -338,7 +338,7 @@ class RequestUtils:
     支持同步和异步请求
     """
 
-    __client = HTTPClient
+    __client: HTTPClient | None = None
 
     @classmethod
     def get_client(cls, *_, **__) -> HTTPClient:
@@ -348,7 +348,9 @@ class RequestUtils:
         :param url: 请求的 URL
         :return: HTTP 客户端
         """
-        return cls.client
+        if cls.__client is None:
+            cls.__client = HTTPClient()
+        return cls.__client
 
     @overload
     @classmethod

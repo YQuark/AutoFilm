@@ -42,7 +42,7 @@ class TheMovieDateBase:
         """
 
         if media_type not in ("multi", "movie", "tv"):
-            logging.error(f"media_type 参数错误，仅支持 multi, movie, tv 三种类型！")
+            logging.error("media_type 参数错误，仅支持 multi, movie, tv 三种类型！")
             return
 
         url = f"{self.api_url}/search/{media_type}"

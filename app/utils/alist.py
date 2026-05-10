@@ -37,6 +37,7 @@ class AlistUtils(metaclass=Singleton):
         def parse_lines(
             start_index: int = 0, indent_level: int = 0
         ) -> tuple[dict, int]:
+            nonlocal current_folder
             result_dict = {}
             i = start_index
             while i < len(lines):
