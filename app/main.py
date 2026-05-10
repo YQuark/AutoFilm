@@ -1,5 +1,7 @@
+import argparse
 import asyncio
 import logging
+from datetime import datetime
 from sys import path
 from os.path import dirname
 
@@ -20,17 +22,41 @@ class _MaxInstancesFilter(logging.Filter):
         return "maximum number of running instances reached" not in record.getMessage()
 
 
-def print_logo() -> None:
-    """
-    打印 Logo
-    """
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="AutoFilm - 媒体自动化工具")
+    parser.add_argument("--run", type=str, metavar="ID", help="立即执行指定 ID 的任务（执行完退出）")
+    parser.add_argument("--run-all", action="store_true", help="立即执行所有任务（执行完退出）")
+    return parser.parse_args()
 
+
+def print_logo() -> None:
     print(LOGO)
     print(f" {settings.APP_NAME} {settings.APP_VERSION} ".center(65, "="))
     print("")
 
 
 async def main() -> None:
+    args = parse_args()
+
+    # 手动模式：执行一次后退出
+    if args.run or args.run_all:
+        target = args.run
+        for server in settings.AlistServerList:
+            if args.run_all or server.get("id") == target:
+                logger.info(f"手动执行 Alist2Strm 任务：{server['id']}")
+                await Alist2Strm(**server).run()
+        for server in settings.Ani2AlistList:
+            if args.run_all or server.get("id") == target:
+                logger.info(f"手动执行 Ani2Alist 任务：{server['id']}")
+                await Ani2Alist(**server).run()
+        for poster in settings.LibraryPosterList:
+            if args.run_all or poster.get("id") == target:
+                logger.info(f"手动执行 LibraryPoster 任务：{poster['id']}")
+                await LibraryPoster(**poster).run()
+        logger.info("手动执行完成")
+        return
+
+    # Cron 调度模式
     logger.info(f"AutoFilm {settings.APP_VERSION} 启动中...")
     logger.debug(f"是否开启 DEBUG 模式: {settings.DEBUG}")
 
@@ -44,6 +70,7 @@ async def main() -> None:
                 scheduler.add_job(
                     Alist2Strm(**server).run,
                     trigger=CronTrigger.from_crontab(cron),
+                    next_run_time=datetime.now(),
                 )
                 logger.info(f"{server['id']} 已被添加至后台任务")
             else:
@@ -57,7 +84,9 @@ async def main() -> None:
             cron = server.get("cron")
             if cron:
                 scheduler.add_job(
-                    Ani2Alist(**server).run, trigger=CronTrigger.from_crontab(cron)
+                    Ani2Alist(**server).run,
+                    trigger=CronTrigger.from_crontab(cron),
+                    next_run_time=datetime.now(),
                 )
                 logger.info(f"{server['id']} 已被添加至后台任务")
             else:
@@ -71,7 +100,9 @@ async def main() -> None:
             cron = poster.get("cron")
             if cron:
                 scheduler.add_job(
-                    LibraryPoster(**poster).run, trigger=CronTrigger.from_crontab(cron)
+                    LibraryPoster(**poster).run,
+                    trigger=CronTrigger.from_crontab(cron),
+                    next_run_time=datetime.now(),
                 )
                 logger.info(f"{poster['id']} 已被添加至后台任务")
             else:

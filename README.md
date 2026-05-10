@@ -45,6 +45,16 @@
     python app/main.py
     ```
 
+## 手动触发任务
+```bash
+# 立即执行指定 ID 的任务（执行完退出）
+python app/main.py --run AV
+
+# 立即执行所有任务（执行完退出）
+python app/main.py --run-all
+```
+> Docker 环境可通过 `docker exec` 执行：`docker exec autofilm python /app/main.py --run AV`
+
 # Strm文件优点
 - [x] 轻量化 Emby 服务器，降低 Emby 服务器的性能需求以及硬盘需求
 - [x] 运行稳定
@@ -70,6 +80,7 @@
 ![LibraryPoster](./img/LibraryPoster.png)
 
 # 更新日志
+- 2026.5.10：v1.5.3，目录遍历并行化（同级子目录并发扫描，大幅提升大库遍历速度）；新增 `--run` / `--run-all` 手动触发模式；容器启动时立即执行首次任务；代码审计修复（可变默认参数、Range header、Token 竞态、TOCTOU 等）；删除未使用的 themoviedb 模块；numpy/scikit-learn 改为可选依赖
 - 2025.9.26：v1.5.0，支持 BDMV 蓝光原盘文件结构，引入 Alist2StrmMode 枚举以简化模式管理，优化 LibraryPoster 对多路径媒体库的处理
 - 2025.7.14：v1.4.0，修复 Ani2Alist 模块时间解析问题，新增 LibraryPoster 美化媒体库封面模块
 - 2025.5.29：v1.3.3，Alist2Strm 模块支持添加删除空目录的功能；提高 Alist V3.45 兼容性；添加 m2ts 视频文件后缀到视频扩展集合；修复视频扩展集合中".wmv"缺失前缀错误
