@@ -414,7 +414,9 @@ class AlistClient(metaclass=Multiton):
         :return: AlistPath 对象生成器
         """
 
-        for path in await self.async_api_fs_list(dir_path, order_by, order_direction):
+        items = await self.async_api_fs_list(dir_path, order_by, order_direction)
+        logger.debug(f"扫描目录 {dir_path}：{len(items)} 个项目")
+        for path in items:
             if wait_time > 0:
                 await sleep(wait_time)
             if path.is_dir:

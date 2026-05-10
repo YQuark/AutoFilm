@@ -205,6 +205,7 @@ class Alist2Strm:
         self.processed_local_paths = set()  # 云盘文件对应的本地文件路径
 
         # 第一阶段：收集所有文件信息并直接处理普通文件
+        scan_count = 0
         async with self.__max_workers, TaskGroup() as tg:
             async for path in self.client.iter_path(
                 dir_path=self.source_dir,
@@ -214,8 +215,12 @@ class Alist2Strm:
                 order_by=self.order_by,
                 order_direction=self.order_direction,
             ):
+                scan_count += 1
+                if scan_count % 100 == 0:
+                    logger.info(f"遍历进度：已发现 {scan_count} 个待处理文件 ...")
                 # 直接处理普通文件，不需要额外的 list
                 tg.create_task(self.__file_processer(path))
+        logger.info(f"遍历完成：共发现 {scan_count} 个待处理文件")
 
         # 完成 BDMV 文件收集，确定最大文件
         self._finalize_bdmv_collections()
