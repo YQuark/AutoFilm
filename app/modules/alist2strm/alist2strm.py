@@ -160,23 +160,27 @@ class Alist2Strm:
 
             self.processed_local_paths.add(local_path)
 
-            if not self.overwrite and local_path.exists():
+            if not self.overwrite:
+                try:
+                    local_stat = local_path.stat()
+                except OSError:
+                    return True  # 文件不存在或无法访问，需要处理
+
                 if path.suffix.lower() in IMAGE_EXTS:
                     # 图片类：仅按大小判断，忽略 mtime（云存储 mtime 不可靠）
-                    if local_path.stat().st_size != path.size:
+                    if local_stat.st_size != path.size:
                         logger.debug(
                             f"文件 {local_path.name} 大小不一致，需要重新处理 {path.full_path}"
                         )
                         return True
                 elif path.suffix.lower() in self.download_exts:
                     # 字幕/NFO/other_ext：保留 mtime 判断，size 改为 != 判断
-                    local_path_stat = local_path.stat()
-                    if local_path_stat.st_mtime < path.modified_timestamp:
+                    if local_stat.st_mtime < path.modified_timestamp:
                         logger.debug(
                             f"文件 {local_path.name} 已过期，需要重新处理 {path.full_path}"
                         )
                         return True
-                    if local_path_stat.st_size != path.size:
+                    if local_stat.st_size != path.size:
                         logger.debug(
                             f"文件 {local_path.name} 大小不一致，需要重新处理 {path.full_path}"
                         )

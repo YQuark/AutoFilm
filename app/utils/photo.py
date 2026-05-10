@@ -1,9 +1,7 @@
 from io import BytesIO
 from base64 import b64encode
 
-import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageFont
-from sklearn.cluster import KMeans  # type: ignore
 
 
 class PhotoUtils:
@@ -13,46 +11,72 @@ class PhotoUtils:
     ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
         """
         从PIL图像对象中提取主题色（背景色）和适配的文字颜色
+        需要 numpy 和 scikit-learn；未安装时自动回退到简单平均色提取
         :param img: PIL图像对象
         :param num_colors: 要提取的主色数量（默认5）
         :param bg_clusters: 用于合并背景色的主色数量（默认1）
         :return: 返回一个元组，包含背景色和文字颜色
-        格式为 ((r, g, b), (r, g, b))
-        其中背景色是RGB格式，文字颜色是根据背景色亮度计算的
         """
-        # 将PIL图像转换为NumPy数组 (RGB格式)
+        try:
+            import numpy as np
+            from sklearn.cluster import KMeans  # type: ignore
+        except ImportError:
+            from app.core import logger
+            logger.warning("numpy/scikit-learn 未安装，使用简单平均色提取（可通过 pip install numpy scikit-learn 启用 KMeans）")
+            return PhotoUtils._get_primary_color_simple(img)
+
         img_array = np.array(img)
 
-        # 如果图像有透明通道，移除alpha通道
-        if img_array.shape[2] == 4:
+        if img_array.ndim == 2:
+            img_array = np.stack([img_array] * 3, axis=-1)
+        elif img_array.shape[2] == 4:
             img_array = img_array[:, :, :3]
 
-        # 将图像数据重塑为2D数组 (像素 x RGB)
         pixel_data = img_array.reshape((-1, 3))
 
-        # 使用K-Means聚类提取主色
         kmeans = KMeans(n_clusters=num_colors, n_init=10, random_state=42)
         kmeans.fit(pixel_data)
 
-        # 获取聚类中心和对应的像素数量
         colors = kmeans.cluster_centers_
         counts = np.bincount(kmeans.labels_)
 
-        # 按出现频率排序颜色
         sorted_indices = np.argsort(counts)[::-1]
         main_colors = colors[sorted_indices].astype(int)
 
-        # 合并指定数量的聚类作为背景色
         background_color = np.mean(main_colors[:bg_clusters], axis=0).astype(int)
 
-        # 计算背景色的相对亮度
         r, g, b = background_color
         luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
 
-        # 根据亮度选择文字颜色
         text_color = (0, 0, 0) if luminance > 0.5 else (255, 255, 255)
 
         return tuple(background_color), tuple(text_color)
+
+    @staticmethod
+    def _get_primary_color_simple(img: Image.Image) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        """
+        简单的平均色提取（纯 Pillow 实现，无需 numpy/sklearn）
+        对图片降采样后取 RGB 平均值
+        """
+        small = img.copy()
+        small.thumbnail((100, 100))
+        small = small.convert("RGB")
+
+        pixels = list(small.getdata())
+        n = len(pixels)
+        if n == 0:
+            return (128, 128, 128), (255, 255, 255)
+
+        r_sum = sum(p[0] for p in pixels)
+        g_sum = sum(p[1] for p in pixels)
+        b_sum = sum(p[2] for p in pixels)
+
+        background_color = (r_sum // n, g_sum // n, b_sum // n)
+        r, g, b = background_color
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        text_color = (0, 0, 0) if luminance > 0.5 else (255, 255, 255)
+
+        return background_color, text_color
 
     @staticmethod
     def create_gradient_background(

@@ -1,4 +1,4 @@
-from asyncio import sleep
+from asyncio import sleep, Lock
 from typing import Callable, AsyncGenerator
 from time import time
 
@@ -39,6 +39,7 @@ class AlistClient(metaclass=Multiton):
             "token": "",  # 令牌 token str
             "expires": 0,  # 令牌过期时间（时间戳，-1为永不过期） int
         }
+        self.__token_lock = Lock()  # 保护 token 刷新的异步锁
         self.base_path = ""
         self.id = 0
 
@@ -51,7 +52,11 @@ class AlistClient(metaclass=Multiton):
             self.__token["expires"] = -1
         elif username != "" and password != "":
             self.__username = str(username)
-            self.___password = str(password)
+            self.___password = str(password)  # 三个下划线：name mangling 后与 __password property 一致
+            # 同步登录获取初始 token
+            self.__token["token"] = self.api_auth_login()
+            now_stamp = int(time())
+            self.__token["expires"] = now_stamp + 2 * 24 * 60 * 60 - 5 * 60
         else:
             raise ValueError("用户名及密码为空或令牌 Token 为空")
 
@@ -74,7 +79,7 @@ class AlistClient(metaclass=Multiton):
 
         if auth:
             headers = kwargs.get("headers", {})
-            headers["Authorization"] = self.__get_token
+            headers["Authorization"] = await self._get_token()
             kwargs["headers"] = headers
         return await self.__client.request(method, url, **kwargs, sync=False)
 
@@ -112,10 +117,10 @@ class AlistClient(metaclass=Multiton):
 
         return self.___password
 
-    @property
-    def __get_token(self) -> str:
+    async def _get_token(self) -> str:
         """
-        返回可用登录令牌
+        返回可用登录令牌，异步版本（用于 async 请求路径）
+        使用 asyncio.Lock 防止并发刷新
 
         :return: 登录令牌 token
         """
@@ -123,23 +128,26 @@ class AlistClient(metaclass=Multiton):
         if self.__token["expires"] == -1:
             logger.debug("使用永久令牌")
             return self.__token["token"]
-        else:
-            logger.debug("使用临时令牌")
-            now_stamp = int(time())
 
-            if self.__token["expires"] < now_stamp:  # 令牌过期需要重新更新
-                self.__token["token"] = self.api_auth_login()
-                self.__token["expires"] = (
-                    now_stamp + 2 * 24 * 60 * 60 - 5 * 60
-                )  # 2天 - 5分钟（alist 令牌有效期为 2 天，提前 5 分钟刷新）
+        logger.debug("使用临时令牌")
+        now_stamp = int(time())
 
-            return self.__token["token"]
+        if self.__token["expires"] < now_stamp:  # 令牌过期需要重新更新
+            async with self.__token_lock:
+                # 双重检查：获取锁后再次判断是否过期
+                if self.__token["expires"] < int(time()):
+                    self.__token["token"] = await self.async_api_auth_login()
+                    self.__token["expires"] = (
+                        now_stamp + 2 * 24 * 60 * 60 - 5 * 60
+                    )  # 2天 - 5分钟（alist 令牌有效期为 2 天，提前 5 分钟刷新）
+
+        return self.__token["token"]
 
     def api_auth_login(self) -> str:
         """
-        登录 Alist 服务器认证账户信息
+        同步登录 Alist 服务器（仅用于 __init__ 初始化）
 
-        :return: 重新申请的登录令牌 token
+        :return: 登录令牌 token
         """
 
         json = {"username": self.username, "password": self.__password}
@@ -155,13 +163,33 @@ class AlistClient(metaclass=Multiton):
         logger.debug(f"{self.username} 更新令牌成功")
         return result["data"]["token"]
 
+    async def async_api_auth_login(self) -> str:
+        """
+        异步登录 Alist 服务器（用于 async 请求路径中的 token 刷新）
+
+        :return: 登录令牌 token
+        """
+
+        json = {"username": self.username, "password": self.__password}
+        resp = await self.__client.post(self.url + "/api/auth/login", json=json, sync=False)
+        if resp.status_code != 200:
+            raise RuntimeError(f"更新令牌请求发送失败，状态码：{resp.status_code}")
+
+        result = resp.json()
+
+        if result["code"] != 200:
+            raise RuntimeError(f"更新令牌，错误信息：{result['message']}")
+
+        logger.debug(f"{self.username} 更新令牌成功")
+        return result["data"]["token"]
+
     def sync_api_me(self) -> None:
         """
-        获取用户信息
+        获取用户信息（同步，仅用于 __init__ 初始化）
         获取当前用户 base_path 和 id 并分别保存在 self.base_path 和 self.id 中
         """
 
-        headers = {"Authorization": self.__get_token}
+        headers = {"Authorization": self.__token["token"]}
         resp = self.__client.get(self.url + "/api/me", headers=headers, sync=True)
 
         if resp.status_code != 200:

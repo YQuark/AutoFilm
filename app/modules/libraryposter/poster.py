@@ -381,6 +381,10 @@ class LibraryPoster:
             if len(images) >= limit:
                 break
 
+        if not images:
+            logger.warning(f"媒体库 {library['Name']} 未获取到任何海报图片，跳过处理")
+            return
+
         logger.info(f"获取到 {library['Name']} 媒体库的 {len(images)} 张海报图片")
         result = self.process_poster(images, title, subtitle)
         await self.update_library_image(library, result)

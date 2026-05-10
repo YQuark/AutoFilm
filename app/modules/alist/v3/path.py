@@ -69,8 +69,11 @@ class AlistPath(BaseModel):
         """
         if self.is_dir:
             return ""
-        else:
-            return "." + self.name.split(".")[-1]
+        name = self.name
+        dot_index = name.rfind(".")
+        if dot_index <= 0:
+            return ""
+        return name[dot_index:]
 
     def __parse_timestamp(self, time_str: str) -> float:
         """

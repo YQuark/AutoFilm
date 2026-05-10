@@ -43,14 +43,12 @@ class Retry(metaclass=Singleton):
         def inner(func: Callable[P, R]) -> Callable[P, Optional[R]]:
             @wraps(func)
             def wrapper(*args, **kwargs) -> Optional[R]:
-                remaining_retries = tries
-                while remaining_retries > 0:
+                for attempt in range(tries):
                     try:
                         return func(*args, **kwargs)
                     except exception as e:
-                        remaining_retries -= 1
-                        if remaining_retries >= 0:
-                            _delay = (tries - remaining_retries) * backoff * delay
+                        if attempt < tries - 1:
+                            _delay = (attempt + 1) * backoff * delay
                             logger.warning(cls.WARNING_MSG.format(e, _delay))
                             sleep(_delay)
                         else:
@@ -83,14 +81,12 @@ class Retry(metaclass=Singleton):
         ) -> Callable[P, Awaitable[Optional[R]]]:
             @wraps(func)
             async def wrapper(*args, **kwargs) -> Optional[R]:
-                remaining_retries = tries
-                while remaining_retries > 0:
+                for attempt in range(tries):
                     try:
                         return await func(*args, **kwargs)
                     except exception as e:
-                        remaining_retries -= 1
-                        if remaining_retries >= 0:
-                            _delay = (tries - remaining_retries) * backoff * delay
+                        if attempt < tries - 1:
+                            _delay = (attempt + 1) * backoff * delay
                             logger.warning(cls.WARNING_MSG.format(e, _delay))
                             await async_sleep(_delay)
                         else:

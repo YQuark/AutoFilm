@@ -10,6 +10,7 @@ RUN apt-get update && \
 COPY requirements.txt requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt && \
+    pip install numpy==2.3.1 scikit-learn==1.7.0 2>/dev/null || true && \
     rm requirements.txt
 
 COPY app /app

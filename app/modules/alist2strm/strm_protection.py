@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+from re import sub as re_sub
 import json
 
 from app.core import logger
@@ -7,10 +8,11 @@ from app.core import logger
 
 class StrmProtectionManager:
     """使用计数器系统的文件保护"""
-    
+
     def __init__(self, target_dir: Path, task_id: str, threshold: int, grace_scans: int):
         self.target_dir = target_dir
-        self.state_file = target_dir / f".autofilm_strm_{task_id}.json"
+        safe_id = re_sub(r'[^\w\-]', '_', str(task_id))
+        self.state_file = target_dir / f".autofilm_strm_{safe_id}.json"
         self.threshold = threshold
         self.grace_scans = grace_scans
         self.protected = self._load()

@@ -131,7 +131,7 @@ class HTTPClient:
         url: str,
         *,
         sync: Literal[True, False] = False,
-        params: dict = {},
+        params: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -143,6 +143,8 @@ class HTTPClient:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if params is None:
+            params = {}
         return self.request("head", url, sync=sync, params=params, **kwargs)
 
     @overload
@@ -158,7 +160,7 @@ class HTTPClient:
         url: str,
         *,
         sync: Literal[True, False] = False,
-        params: dict = {},
+        params: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -170,6 +172,8 @@ class HTTPClient:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if params is None:
+            params = {}
         return self.request("get", url, sync=sync, params=params, **kwargs)
 
     @overload
@@ -186,7 +190,7 @@ class HTTPClient:
         *,
         sync: Literal[True, False] = False,
         data: Any = None,
-        json: dict = {},
+        json: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -199,6 +203,8 @@ class HTTPClient:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if json is None:
+            json = {}
         return self.request("post", url, sync=sync, data=data, json=json, **kwargs)
 
     @overload
@@ -215,7 +221,7 @@ class HTTPClient:
         *,
         sync: Literal[True, False] = False,
         data: Any = None,
-        json: dict = {},
+        json: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -228,13 +234,15 @@ class HTTPClient:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if json is None:
+            json = {}
         return self.request("put", url, sync=sync, data=data, json=json, **kwargs)
 
     async def download(
         self,
         url: str,
         file_path: Path,
-        params: dict = {},
+        params: dict | None = None,
         chunk_num: int = 5,
         **kwargs,
     ) -> None:
@@ -246,6 +254,8 @@ class HTTPClient:
         :param params: 请求参数
         :param kwargs: 其他请求参数，如 headers, cookies 等
         """
+        if params is None:
+            params = {}
         resp = await self.head(url, sync=False, params=params, **kwargs)
 
         file_size = int(resp.headers.get("Content-Length", -1))
@@ -293,7 +303,7 @@ class HTTPClient:
 
         await to_thread(makedirs, file_path.parent, exist_ok=True)
 
-        if start != 0 and end != 0:
+        if end != 0:
             headers = kwargs.get("headers", {})
             headers["Range"] = f"bytes={start}-{end}"
             kwargs["headers"] = headers
@@ -403,7 +413,7 @@ class RequestUtils:
         url: str,
         *,
         sync: Literal[True, False] = False,
-        params: dict = {},
+        params: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -415,6 +425,8 @@ class RequestUtils:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if params is None:
+            params = {}
         return cls.request("head", url, sync=sync, params=params, **kwargs)
 
     @overload
@@ -433,7 +445,7 @@ class RequestUtils:
         url: str,
         *,
         sync: Literal[True, False] = False,
-        params: dict = {},
+        params: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -444,6 +456,8 @@ class RequestUtils:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if params is None:
+            params = {}
         return cls.request("get", url, sync=sync, params=params, **kwargs)
 
     @overload
@@ -458,7 +472,7 @@ class RequestUtils:
         *,
         sync: Literal[False] = False,
         data: Any = None,
-        json: dict = {},
+        json: dict | None = None,
         **kwargs,
     ) -> Coroutine[Any, Any, Response | None]: ...
 
@@ -469,7 +483,7 @@ class RequestUtils:
         *,
         sync: Literal[True, False] = False,
         data: Any = None,
-        json: dict = {},
+        json: dict | None = None,
         **kwargs,
     ) -> Response | None | Coroutine[Any, Any, Response | None]:
         """
@@ -481,6 +495,8 @@ class RequestUtils:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
+        if json is None:
+            json = {}
         return cls.request("post", url, sync=sync, data=data, json=json, **kwargs)
 
     @overload
@@ -518,7 +534,7 @@ class RequestUtils:
         cls,
         url: str,
         file_path: Path,
-        params: dict = {},
+        params: dict | None = None,
         **kwargs,
     ) -> None:
         """
@@ -529,5 +545,7 @@ class RequestUtils:
         :param params: 请求参数
         :param kwargs: 其他请求参数，如 headers, cookies 等
         """
+        if params is None:
+            params = {}
         client = cls.get_client(url)
         await client.download(url, file_path, params=params, **kwargs)
