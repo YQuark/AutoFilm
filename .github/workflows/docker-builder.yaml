@@ -11,6 +11,11 @@ on:
         description: "是否发布为Docker镜像最新版本"
         required: true
         type: boolean
+      MULTI_PLATFORM:
+        description: "是否构建多架构镜像（amd64+arm64）"
+        required: false
+        type: boolean
+        default: true
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -30,6 +35,7 @@ jobs:
         run: |
           echo "Docker镜像版本的标签号：${{ env.APP_VERSION }}"
           echo "是否发布为Docker镜像最新版本：${{ env.IS_LATEST }}"
+          echo "多架构构建：${{ inputs.MULTI_PLATFORM }}"
 
       - name: Clone Repository
         uses: actions/checkout@v6
@@ -44,6 +50,7 @@ jobs:
               type=raw,value=${{ env.APP_VERSION }},enable=true
 
       - name: Set up QEMU
+        if: inputs.MULTI_PLATFORM
         uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
@@ -54,19 +61,15 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
+
       - name: Build Image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
+          platforms: ${{ inputs.MULTI_PLATFORM && 'linux/amd64,linux/arm64/v8' || 'linux/amd64' }}
           push: true
-          build-args: |
-            AUTOFILM_VERSION=${{ env.APP_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha, scope=${{ github.workflow }}-docker
-          cache-to: type=gha, scope=${{ github.workflow }}-docker
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
