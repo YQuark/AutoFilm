@@ -206,11 +206,18 @@ class AlistClient(metaclass=Multiton):
         except Exception:
             raise RuntimeError("获取用户信息失败")
 
-    async def async_api_fs_list(self, dir_path: str) -> list[AlistPath]:
+    async def async_api_fs_list(
+        self,
+        dir_path: str,
+        order_by: str = "modified",
+        order_direction: str = "DESC",
+    ) -> list[AlistPath]:
         """
         获取文件列表
 
         :param dir_path: 目录路径
+        :param order_by: 排序字段（name/size/modified/created），默认 modified
+        :param order_direction: 排序方向（ASC/DESC），默认 DESC（最新优先）
         :return: AlistPath 对象列表
         """
 
@@ -222,6 +229,8 @@ class AlistClient(metaclass=Multiton):
             "page": 1,
             "per_page": 0,
             "refresh": False,
+            "order_by": order_by,
+            "order_direction": order_direction,
         }
 
         resp = await self.__post(self.url + "/api/fs/list", json=json)
@@ -389,6 +398,8 @@ class AlistClient(metaclass=Multiton):
         wait_time: float | int,
         is_detail: bool = True,
         filter: Callable[[AlistPath], bool] = lambda x: True,
+        order_by: str = "modified",
+        order_direction: str = "DESC",
     ) -> AsyncGenerator[AlistPath, None]:
         """
         异步路径列表生成器
@@ -398,17 +409,22 @@ class AlistClient(metaclass=Multiton):
         :param wait_time: 每轮遍历等待时间（单位秒）,
         :param is_detail：是否获取详细信息（raw_url）
         :param filter: 匿名函数过滤器（默认不启用）
+        :param order_by: 排序字段（name/size/modified/created），默认 modified
+        :param order_direction: 排序方向（ASC/DESC），默认 DESC（最新优先）
         :return: AlistPath 对象生成器
         """
 
-        for path in await self.async_api_fs_list(dir_path):
-            await sleep(wait_time)
+        for path in await self.async_api_fs_list(dir_path, order_by, order_direction):
+            if wait_time > 0:
+                await sleep(wait_time)
             if path.is_dir:
                 async for child_path in self.iter_path(
                     dir_path=path.full_path,
                     wait_time=wait_time,
                     is_detail=is_detail,
                     filter=filter,
+                    order_by=order_by,
+                    order_direction=order_direction,
                 ):
                     yield child_path
 

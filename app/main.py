@@ -44,7 +44,6 @@ async def main() -> None:
                 scheduler.add_job(
                     Alist2Strm(**server).run,
                     trigger=CronTrigger.from_crontab(cron),
-                    max_instances=2,
                 )
                 logger.info(f"{server['id']} 已被添加至后台任务")
             else:
