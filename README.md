@@ -42,7 +42,8 @@
     ```
     或使用 Docker Compose：
     ```bash
-    docker compose up -d --build
+    docker compose pull
+    docker compose up -d
     ```
 2. Python 环境运行（Python3.12）
     ```bash
