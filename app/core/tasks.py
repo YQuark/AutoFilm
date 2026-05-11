@@ -101,6 +101,18 @@ class TaskRegistry:
         latest = history[0] if isinstance(history, list) and history else None
         return {"task": key, "latest": latest, "state": state}
 
+    def runs(self, module_name: str, task_id: str) -> dict[str, Any] | None:
+        key = make_task_key(module_name, task_id)
+        if key not in self._tasks:
+            return None
+        state = self._state_store.get(key)
+        history = state.get("history")
+        return {
+            "task": key,
+            "history": history if isinstance(history, list) else [],
+            "state": state,
+        }
+
     async def run(self, definition: TaskDefinition) -> bool:
         lock = self._locks.setdefault(definition.key, asyncio.Lock())
         if lock.locked():

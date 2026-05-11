@@ -77,6 +77,8 @@ web_token: "change-me"
 
 当 `web_token` 非空时，触发任务需要请求头：`Authorization: Bearer change-me`。
 
+v2.1.0 起 Web UI 升级为运维控制台，支持任务仪表盘、运行历史、配置摘要、主题/密度/视图偏好，以及带备份和校验的 `config.yaml` 编辑。配置写操作强制要求 `web_token`，未设置时仅提供只读配置视图。
+
 # Strm文件优点
 - [x] 轻量化 Emby 服务器，降低 Emby 服务器的性能需求以及硬盘需求
 - [x] 运行稳定
@@ -98,6 +100,7 @@ web_token: "change-me"
     > 已经向 [MoviePilot](https://github.com/jxxghp/MoviePilot) 提交支持对 Alist 服务器文件的操作功能的 PR，目前已经合并进入主线分支，可以直接使用 MoviePilot 直接刮削
 
 # 更新日志
+- 2026.5.11：v2.1.0，全面升级 Web UI 为内置无构建运维控制台：新增任务仪表盘、运行历史、配置摘要、深浅色/密度/表格卡片视图自定义；新增配置编辑器，支持 Settings 表单编辑、完整 YAML 校验与保存、自动备份和备份恢复；配置写接口强制 Web Token，未配置 Token 时保持只读；新增配置摘要脱敏与备份目录忽略。
 - 2026.5.11：v2.0.0，平台化大版本：新增统一任务注册与运行状态持久化，支持轻量 Web UI / API 查看任务、手动触发任务、查询最近运行结果；任务调度 ID 改为模块隔离，避免 Alist2Strm / Ani2Alist 同名任务冲突；修复 HTTP 分片下载 headers 共享导致 Range 串扰的风险；增强配置容错、other_ext 解析和 Docker entrypoint 的 YAML 解析；README Docker 镜像名统一为 yquark/autofilm。
 - 2026.5.11：v1.6.0，新增通知模块（Telegram / Bark / Webhook 推送，任务开始/完成/失败/保护触发自动通知）；新增配置文件热重载（修改 config.yaml 无需重启容器，自动 diff 增删改定时任务）；新增增量扫描（持久化文件清单，后续运行跳过未变更文件，大幅减少重复扫描开销）；移除 LibraryPoster 模块及 photo/fonts/numpy/scikit-learn/pillow/pypinyin 依赖链；移除孤立模块 filetransfer/extensions.media/StringsUtils；移除 AlistUtils.sign/URLUtils.get_resolve_url 等死方法；清理 AlistPath 未使用字段和 demo __main__ 块；Docker 镜像精简（移除 fonts 目录及可选依赖安装）
 - 2026.5.10：v1.5.3，目录遍历并行化（同级子目录并发扫描，大幅提升大库遍历速度）；新增 `--run` / `--run-all` 手动触发模式；容器启动时立即执行首次任务；代码审计修复（可变默认参数、Range header、Token 竞态、TOCTOU 等）；删除未使用的 themoviedb 模块；numpy/scikit-learn 改为可选依赖

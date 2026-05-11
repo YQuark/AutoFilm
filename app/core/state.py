@@ -70,6 +70,7 @@ class TaskStateStore:
         )
         self._state["tasks"][key] = state
         self.save()
+
     def mark_finished(self, key: str, success: bool, error: str = "") -> None:
         now = datetime.now().isoformat()
         state = self.get(key)
