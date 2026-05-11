@@ -81,7 +81,10 @@ class AlistClient(metaclass=Multiton):
             headers = kwargs.get("headers", {})
             headers["Authorization"] = await self._get_token()
             kwargs["headers"] = headers
-        return await self.__client.request(method, url, **kwargs, sync=False)
+        resp = await self.__client.request(method, url, **kwargs, sync=False)
+        if resp is None:
+            raise RuntimeError(f"Alist 请求无响应：{method.upper()} {url}")
+        return resp
 
     async def __get(self, url: str, auth: bool = True, **kwargs) -> Response:
         """
@@ -152,6 +155,8 @@ class AlistClient(metaclass=Multiton):
 
         json = {"username": self.username, "password": self.__password}
         resp = self.__client.post(self.url + "/api/auth/login", json=json, sync=True)
+        if resp is None:
+            raise RuntimeError("更新令牌请求无响应")
         if resp.status_code != 200:
             raise RuntimeError(f"更新令牌请求发送失败，状态码：{resp.status_code}")
 
@@ -172,6 +177,8 @@ class AlistClient(metaclass=Multiton):
 
         json = {"username": self.username, "password": self.__password}
         resp = await self.__client.post(self.url + "/api/auth/login", json=json, sync=False)
+        if resp is None:
+            raise RuntimeError("更新令牌请求无响应")
         if resp.status_code != 200:
             raise RuntimeError(f"更新令牌请求发送失败，状态码：{resp.status_code}")
 
@@ -191,6 +198,8 @@ class AlistClient(metaclass=Multiton):
 
         headers = {"Authorization": self.__token["token"]}
         resp = self.__client.get(self.url + "/api/me", headers=headers, sync=True)
+        if resp is None:
+            raise RuntimeError("获取用户信息请求无响应")
 
         if resp.status_code != 200:
             raise RuntimeError(f"获取用户信息请求发送失败，状态码：{resp.status_code}")

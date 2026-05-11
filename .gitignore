@@ -8,5 +8,7 @@ __pycache__/*
 .DS_Store
 *bak
 *test*
+!tests/
+!tests/test_*.py
 *pyc*
 

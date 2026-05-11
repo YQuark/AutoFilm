@@ -1,20 +1,21 @@
-from app.utils.http import RequestUtils, HTTPClient
-from app.utils.alist import AlistUtils
-from app.utils.retry import Retry
-from app.utils.url import URLUtils
-from app.utils.singleton import Singleton
-from app.utils.multiton import Multiton
-from app.utils.strings import StringsUtils
-from app.utils.photo import PhotoUtils
+from app.utils.http import RequestUtils as RequestUtils
+from app.utils.http import HTTPClient as HTTPClient
+from app.utils.alist import AlistUtils as AlistUtils
+from app.utils.retry import Retry as Retry
+from app.utils.url import URLUtils as URLUtils
+from app.utils.singleton import Singleton as Singleton
+from app.utils.multiton import Multiton as Multiton
+from app.utils.strings import StringsUtils as StringsUtils
+from app.utils.photo import PhotoUtils as PhotoUtils
 
 __all__ = [
-    RequestUtils,
-    HTTPClient,
-    AlistUtils,
-    Retry,
-    URLUtils,
-    Singleton,
-    Multiton,
-    StringsUtils,
-    PhotoUtils,
+    "RequestUtils",
+    "HTTPClient",
+    "AlistUtils",
+    "Retry",
+    "URLUtils",
+    "Singleton",
+    "Multiton",
+    "StringsUtils",
+    "PhotoUtils",
 ]

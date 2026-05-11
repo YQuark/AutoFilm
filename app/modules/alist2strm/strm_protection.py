@@ -13,8 +13,8 @@ class StrmProtectionManager:
         self.target_dir = target_dir
         safe_id = re_sub(r'[^\w\-]', '_', str(task_id))
         self.state_file = target_dir / f".autofilm_strm_{safe_id}.json"
-        self.threshold = threshold
-        self.grace_scans = grace_scans
+        self.threshold = max(1, int(threshold))
+        self.grace_scans = max(1, int(grace_scans))
         self.protected = self._load()
     
     def _to_relative(self, file_path: Path) -> str:
@@ -39,6 +39,7 @@ class StrmProtectionManager:
         """使用原子写入将状态保存到磁盘"""
         temp_file = self.state_file.with_suffix('.tmp')
         try:
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump({
                     "updated": datetime.now().isoformat(),

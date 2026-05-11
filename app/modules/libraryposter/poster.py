@@ -49,7 +49,8 @@ class LibraryPoster:
                 f"获取 {self.__server_url} 用户列表失败, 状态码: {resp.status_code}"
             )
             return []
-        return resp.json()
+        data = resp.json()
+        return data if isinstance(data, list) else []
 
     async def get_libraries(self) -> list[dict[str, Any]]:
         """
@@ -68,7 +69,11 @@ class LibraryPoster:
             )
             return []
 
-        return resp.json()["Items"]
+        data = resp.json()
+        if not isinstance(data, dict):
+            logger.warning(f"获取 {self.__server_url} 媒体库列表失败，响应格式错误")
+            return []
+        return data.get("Items", [])
 
     async def get_library_items(
         self,
@@ -141,7 +146,13 @@ class LibraryPoster:
             )
             return None
 
-        return Image.open(BytesIO(resp.content))
+        try:
+            image = Image.open(BytesIO(resp.content))
+            image.load()
+            return image
+        except Exception as e:
+            logger.warning(f"解析项目 {item['Name']} 图片失败: {e}")
+            return None
 
     async def download_library_poster(
         self,
@@ -397,9 +408,15 @@ class LibraryPoster:
         libraries = await self.get_libraries()
         library_kv: dict[str, str] = {item["Name"]: item for item in libraries}
         for config in self.__configs:
-            if config["library_name"] in library_kv:
+            library_name = config.get("library_name")
+            if not library_name:
+                logger.warning(f"跳过缺少 library_name 的媒体库配置: {config}")
+                continue
+            if library_name in library_kv:
                 await self.process_library(
-                    library_kv[config["library_name"]],
+                    library_kv[library_name],
                     config.get("title", ""),
                     config.get("subtitle", ""),
                 )
+            else:
+                logger.warning(f"未找到媒体库: {library_name}")

@@ -257,14 +257,19 @@ class HTTPClient:
         if params is None:
             params = {}
         resp = await self.head(url, sync=False, params=params, **kwargs)
+        if resp is None:
+            raise RuntimeError(f"下载 {url} 失败：HEAD 请求无响应")
+        if resp.status_code >= 400:
+            raise RuntimeError(f"下载 {url} 失败：HEAD 状态码 {resp.status_code}")
 
         file_size = int(resp.headers.get("Content-Length", -1))
+        accept_ranges = resp.headers.get("Accept-Ranges", "").lower() == "bytes"
 
         with TemporaryDirectory(prefix="AutoFilm_") as temp_dir:  # 创建临时目录
             temp_file = Path(temp_dir) / file_path.name
 
-            if file_size == -1:
-                logger.debug(f"{file_path.name} 文件大小未知，直接下载")
+            if file_size == -1 or not accept_ranges or chunk_num <= 1:
+                logger.debug(f"{file_path.name} 使用单流下载")
                 await self.__download_chunk(url, temp_file, 0, 0, **kwargs)
             else:
                 # 预分配文件以支持并发分片写入
@@ -279,6 +284,11 @@ class HTTPClient:
                         tg.create_task(
                             self.__download_chunk(url, temp_file, start, end, **kwargs)
                         )
+            if file_size >= 0 and temp_file.stat().st_size != file_size:
+                raise RuntimeError(
+                    f"下载 {url} 失败：文件大小不一致，本地 {temp_file.stat().st_size}，远端 {file_size}"
+                )
+            await to_thread(makedirs, file_path.parent, exist_ok=True)
             copy2(temp_file, file_path)
 
     async def __download_chunk(
@@ -309,7 +319,15 @@ class HTTPClient:
             kwargs["headers"] = headers
 
         resp = await self.get(url, sync=False, **kwargs)
-        async with async_open(file_path, "r+b") as file:
+        if resp is None:
+            raise RuntimeError(f"下载 {url} 失败：GET 请求无响应")
+        if end != 0 and resp.status_code != 206:
+            raise RuntimeError(f"下载 {url} 分片失败：状态码 {resp.status_code}")
+        if end == 0 and resp.status_code >= 400:
+            raise RuntimeError(f"下载 {url} 失败：状态码 {resp.status_code}")
+
+        mode = "r+b" if file_path.exists() else "wb"
+        async with async_open(file_path, mode) as file:
             file.seek(start)
             async for chunk in resp.aiter_bytes(iter_chunked_size):
                 await file.write(chunk)

@@ -381,14 +381,14 @@ class TestAlistClientIterPath(unittest.IsolatedAsyncioTestCase):
         )
 
         found = []
-        async for path in AlistClient.iter_path(
+        async for alist_path in AlistClient.iter_path(
             client,
             dir_path="/",
             wait_time=0,
             is_detail=True,
             concurrency=2,
         ):
-            found.append(path)
+            found.append(alist_path)
 
         self.assertEqual(
             {path.full_path for path in found},

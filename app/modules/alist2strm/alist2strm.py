@@ -72,7 +72,7 @@ class Alist2Strm:
             public_url = "https://" + public_url
         self.public_url = public_url.rstrip("/") if public_url else None
 
-        self.source_dir = source_dir
+        self.source_dir = self._normalize_remote_dir(source_dir)
         self.target_dir = Path(target_dir)
 
         self.flatten_mode = flatten_mode
@@ -320,9 +320,7 @@ class Alist2Strm:
                     local_path = self.target_dir / f"{movie_title}.strm"
                 else:
                     # 计算相对于 source_dir 的路径
-                    relative_path = bdmv_root.replace(self.source_dir, "", 1)
-                    if relative_path.startswith("/"):
-                        relative_path = relative_path[1:]
+                    relative_path = self._relative_remote_path(bdmv_root)
                     
                     # 将 .strm 文件放在电影根目录下，使用电影标题命名
                     local_path = self.target_dir / relative_path / f"{movie_title}.strm"
@@ -333,15 +331,35 @@ class Alist2Strm:
         if self.flatten_mode:
             local_path = self.target_dir / path.name
         else:
-            relative_path = path.full_path.replace(self.source_dir, "", 1)
-            if relative_path.startswith("/"):
-                relative_path = relative_path[1:]
+            relative_path = self._relative_remote_path(path.full_path)
             local_path = self.target_dir / relative_path
 
         if path.suffix.lower() in VIDEO_EXTS:
             local_path = local_path.with_suffix(".strm")
 
         return local_path
+
+    @staticmethod
+    def _normalize_remote_dir(path: str) -> str:
+        """
+        规范化 Alist 远端目录，避免末尾斜杠差异影响相对路径计算。
+        """
+        normalized = "/" + str(path or "/").strip("/")
+        return "/" if normalized == "/" else normalized
+
+    def _relative_remote_path(self, full_path: str) -> str:
+        """
+        计算远端路径相对 source_dir 的本地相对路径。
+        """
+        if self.source_dir == "/":
+            return full_path.lstrip("/")
+
+        prefix = self.source_dir.rstrip("/") + "/"
+        if full_path == self.source_dir:
+            return ""
+        if full_path.startswith(prefix):
+            return full_path[len(prefix):]
+        return full_path.lstrip("/")
 
     async def __cleanup_local_files(self) -> None:
         """
@@ -350,10 +368,19 @@ class Alist2Strm:
         """
         logger.info("开始清理本地文件")
 
+        if not self.target_dir.exists():
+            logger.warning(f"目标目录不存在，跳过清理：{self.target_dir}")
+            return
+
         if self.flatten_mode:
             all_local_files = [f for f in self.target_dir.iterdir() if f.is_file()]
         else:
             all_local_files = [f for f in self.target_dir.rglob("*") if f.is_file()]
+
+        all_local_files = [
+            f for f in all_local_files
+            if not (f.name.startswith(".autofilm_strm_") and f.suffix == ".json")
+        ]
 
         files_to_delete = set(all_local_files) - self.processed_local_paths
         strm_present = None
@@ -376,6 +403,16 @@ class Alist2Strm:
         files_to_delete = strm_to_delete | other_files
         
         for file_path in files_to_delete:
+            try:
+                target_root = self.target_dir.resolve()
+                resolved_file = file_path.resolve()
+                if resolved_file != target_root and target_root not in resolved_file.parents:
+                    logger.error(f"跳过目标目录外的文件：{file_path}")
+                    continue
+            except OSError as e:
+                logger.error(f"解析文件路径失败，跳过删除 {file_path}：{e}")
+                continue
+
             # 检查文件是否匹配忽略正则表达式
             if self.sync_ignore_pattern and self.sync_ignore_pattern.search(
                 file_path.name

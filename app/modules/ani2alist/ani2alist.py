@@ -166,21 +166,28 @@ class Ani2Alist:
             """
             logger.debug(f"请求地址：{_url}")
             _resp = await RequestUtils.post(_url)
+            if _resp is None:
+                raise RuntimeError(f"请求无响应：{_url}")
             if _resp.status_code != 200:
                 raise Exception(f"请求发送失败，状态码：{_resp.status_code}")
 
             _result = _resp.json()
 
             for file in _result["files"]:
-                mimeType: str = file["mimeType"]
-                name: str = file["name"]
+                mimeType: str | None = file.get("mimeType")
+                name: str | None = file.get("name")
+                if not mimeType or not name:
+                    logger.warning(f"跳过缺少必要字段的文件项：{file}")
+                    continue
                 quoted_name = URLUtils.encode(name)
 
                 if mimeType in FILE_MINETYPE:
-                    size: str = file["size"]
-                    created_time_stamp: str = str(
-                        __parse2timestamp(file["createdTime"])
-                    )
+                    size = file.get("size")
+                    created_time = file.get("createdTime")
+                    if size is None or not created_time:
+                        logger.warning(f"跳过缺少大小或时间的文件项：{file}")
+                        continue
+                    created_time_stamp = str(__parse2timestamp(created_time))
                     __url = _url + quoted_name + "?d=true"
                     logger.debug(
                         f"获取文件：{name}，文件大小：{int(size) / 1024 / 1024:.2f}MB，播放地址：{__url}"
@@ -241,9 +248,13 @@ class Ani2Alist:
             """
             units = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
             number, unit = [string.strip() for string in size_str.split()]
+            if unit not in units:
+                raise ValueError(f"未知大小单位：{unit}")
             return int(float(number) * units[unit])
 
         resp = await RequestUtils.get(f"https://{self.__rss_domain}/ani-download.xml")
+        if resp is None:
+            raise RuntimeError("RSS 请求无响应")
         if resp.status_code != 200:
             raise Exception(f"请求发送失败，状态码：{resp.status_code}")
         feeds = parse(resp.text)
@@ -287,4 +298,7 @@ class Ani2Alist:
                 "anime_size": "473.0 MB",
             }
             """
-            handle_recursive(url_dict, entry)
+            try:
+                handle_recursive(url_dict, entry)
+            except (AttributeError, KeyError, ValueError) as e:
+                logger.warning(f"跳过无法解析的 RSS 条目：{e}")

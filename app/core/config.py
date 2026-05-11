@@ -1,5 +1,5 @@
 from pathlib import Path
-from yaml import safe_load
+from yaml import YAMLError, safe_load
 from typing import Any
 
 from app.version import APP_VERSION
@@ -30,22 +30,43 @@ class SettingManager:
         """
         创建目录
         """
-        with self.CONFIG_DIR as dir_path:
-            if not dir_path.exists():
-                dir_path.mkdir(parents=True, exist_ok=True)
+        if not self.CONFIG_DIR.exists():
+            self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-        with self.LOG_DIR as dir_path:
-            if not dir_path.exists():
-                dir_path.mkdir(parents=True, exist_ok=True)
+        if not self.LOG_DIR.exists():
+            self.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     def __load_mode(self) -> None:
         """
         加载模式
         """
-        with self.CONFIG.open(mode="r", encoding="utf-8") as file:
-            is_dev = safe_load(file).get("Settings", {}).get("DEV", False)
+        settings = self.__get_section("Settings", {})
+        is_dev = settings.get("DEV", False) if isinstance(settings, dict) else False
 
         self.DEBUG = is_dev
+
+    def __load_config(self) -> dict[str, Any]:
+        """
+        加载配置文件。缺失或空配置按空配置处理，格式错误明确报错。
+        """
+        if not self.CONFIG.exists():
+            return {}
+
+        try:
+            with self.CONFIG.open(mode="r", encoding="utf-8") as file:
+                data = safe_load(file) or {}
+        except YAMLError as e:
+            raise RuntimeError(f"配置文件 {self.CONFIG} YAML 解析失败：{e}") from e
+
+        if not isinstance(data, dict):
+            raise RuntimeError(f"配置文件 {self.CONFIG} 顶层必须是 YAML 映射")
+        return data
+
+    def __get_section(self, name: str, default: Any) -> Any:
+        """
+        获取配置段，保持缺失字段使用默认值的兼容行为。
+        """
+        return self.__load_config().get(name, default)
 
     @property
     def BASE_DIR(self) -> Path:
@@ -87,21 +108,18 @@ class SettingManager:
 
     @property
     def AlistServerList(self) -> list[dict[str, Any]]:
-        with self.CONFIG.open(mode="r", encoding="utf-8") as file:
-            alist_server_list = safe_load(file).get("Alist2StrmList", [])
-        return alist_server_list
+        alist_server_list = self.__get_section("Alist2StrmList", [])
+        return alist_server_list if isinstance(alist_server_list, list) else []
 
     @property
     def Ani2AlistList(self) -> list[dict[str, Any]]:
-        with self.CONFIG.open(mode="r", encoding="utf-8") as file:
-            ani2alist_list = safe_load(file).get("Ani2AlistList", [])
-        return ani2alist_list
+        ani2alist_list = self.__get_section("Ani2AlistList", [])
+        return ani2alist_list if isinstance(ani2alist_list, list) else []
 
     @property
     def LibraryPosterList(self) -> list[dict[str, Any]]:
-        with self.CONFIG.open(mode="r", encoding="utf-8") as file:
-            library_poster_list = safe_load(file).get("LibraryPosterList", [])
-        return library_poster_list
+        library_poster_list = self.__get_section("LibraryPosterList", [])
+        return library_poster_list if isinstance(library_poster_list, list) else []
 
 
 settings = SettingManager()
