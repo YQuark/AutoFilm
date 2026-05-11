@@ -150,6 +150,13 @@ class TestWebConfigRoutes(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertIn("AutoFilm 控制台", response.text)
+            self.assertIn("概览", response.text)
+            self.assertIn("任务", response.text)
+            self.assertIn("配置", response.text)
+            self.assertIn("保存令牌", response.text)
+            self.assertNotIn(">Dashboard<", response.text)
+            self.assertNotIn(">Tasks<", response.text)
+            self.assertNotIn(">Refresh<", response.text)
 
 
 if __name__ == "__main__":

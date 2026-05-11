@@ -210,49 +210,49 @@ HTML = """<!doctype html>
         <span class="version">__VERSION__</span>
       </div>
       <nav aria-label="主导航">
-        <button class="active" data-page="dashboard" type="button">Dashboard</button>
-        <button data-page="tasks" type="button">Tasks</button>
-        <button data-page="config" type="button">Config</button>
-        <button data-page="settings" type="button">Preferences</button>
+        <button class="active" data-page="dashboard" type="button">概览</button>
+        <button data-page="tasks" type="button">任务</button>
+        <button data-page="config" type="button">配置</button>
+        <button data-page="settings" type="button">偏好</button>
       </nav>
     </aside>
     <main>
       <header>
         <div>
-          <h1 id="page-title">Dashboard</h1>
-          <div class="muted" id="health-line">Checking service...</div>
+          <h1 id="page-title">概览</h1>
+          <div class="muted" id="health-line">正在检查服务...</div>
         </div>
         <div class="toolbar">
-          <input id="token-input" type="password" autocomplete="current-password" placeholder="Web token">
-          <button id="save-token" type="button">Save token</button>
-          <button id="refresh" class="primary" type="button">Refresh</button>
+          <input id="token-input" type="password" autocomplete="current-password" placeholder="Web 令牌">
+          <button id="save-token" type="button">保存令牌</button>
+          <button id="refresh" class="primary" type="button">刷新</button>
         </div>
       </header>
       <section class="content" id="page-dashboard">
         <div class="grid" id="metrics"></div>
         <div class="panel">
-          <h2>Recent Activity</h2>
-          <div id="recent-activity" class="muted">No activity</div>
+          <h2>最近活动</h2>
+          <div id="recent-activity" class="muted">暂无活动</div>
         </div>
       </section>
       <section class="content hidden" id="page-tasks">
         <div class="panel">
           <div class="toolbar">
-            <h2 style="margin-right:auto">Tasks</h2>
-            <select id="module-filter" aria-label="Module filter">
-              <option value="">All modules</option>
+            <h2 style="margin-right:auto">任务</h2>
+            <select id="module-filter" aria-label="模块筛选">
+              <option value="">全部模块</option>
               <option value="Alist2Strm">Alist2Strm</option>
               <option value="Ani2Alist">Ani2Alist</option>
             </select>
-            <select id="view-mode" aria-label="View mode">
-              <option value="table">Table</option>
-              <option value="cards">Cards</option>
+            <select id="view-mode" aria-label="视图模式">
+              <option value="table">表格</option>
+              <option value="cards">卡片</option>
             </select>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
-                <tr><th>Task</th><th>Cron</th><th>Next run</th><th>Status</th><th>Last result</th><th>Action</th></tr>
+                <tr><th>任务</th><th>Cron</th><th>下次运行</th><th>状态</th><th>最近结果</th><th>操作</th></tr>
               </thead>
               <tbody id="task-rows"></tbody>
             </table>
@@ -260,79 +260,79 @@ HTML = """<!doctype html>
           <div class="task-cards" id="task-cards"></div>
         </div>
         <div class="panel">
-          <h2>Run History</h2>
-          <div id="run-history" class="muted">Select a task.</div>
+          <h2>运行历史</h2>
+          <div id="run-history" class="muted">请选择一个任务。</div>
         </div>
       </section>
       <section class="content hidden" id="page-config">
         <div class="split">
           <div class="panel">
-            <h2>Config Summary</h2>
-            <div id="config-summary" class="muted">Loading...</div>
-            <h2 style="margin-top:18px">Settings Form</h2>
+            <h2>配置摘要</h2>
+            <div id="config-summary" class="muted">正在加载...</div>
+            <h2 style="margin-top:18px">常用设置</h2>
             <div class="form-grid">
-              <label>Web enabled
+              <label>启用 Web
                 <select id="cfg-web-enabled">
-                  <option value="true">True</option>
-                  <option value="false">False</option>
+                  <option value="true">是</option>
+                  <option value="false">否</option>
                 </select>
               </label>
-              <label>Web host
+              <label>Web 监听地址
                 <input id="cfg-web-host" type="text" placeholder="0.0.0.0">
               </label>
-              <label>Web port
+              <label>Web 端口
                 <input id="cfg-web-port" type="number" min="1" max="65535" placeholder="8000">
               </label>
-              <label>Web token
-                <input id="cfg-web-token" type="password" placeholder="Leave blank to keep unchanged">
+              <label>Web 令牌
+                <input id="cfg-web-token" type="password" placeholder="留空表示不修改">
               </label>
-              <label>Hot reload
+              <label>热重载
                 <select id="cfg-hot-reload">
-                  <option value="true">True</option>
-                  <option value="false">False</option>
+                  <option value="true">是</option>
+                  <option value="false">否</option>
                 </select>
               </label>
-              <label>Reload interval
+              <label>重载间隔
                 <input id="cfg-hot-reload-interval" type="number" min="5" placeholder="30">
               </label>
             </div>
             <div class="toolbar" style="margin-top:12px">
-              <button id="save-settings" class="primary" type="button">Save settings form</button>
+              <button id="save-settings" class="primary" type="button">保存常用设置</button>
             </div>
-            <h2 style="margin-top:18px">Backups</h2>
-            <div id="backups" class="muted">No backups</div>
+            <h2 style="margin-top:18px">配置备份</h2>
+            <div id="backups" class="muted">暂无备份</div>
           </div>
           <div class="panel">
             <div class="toolbar">
-              <h2 style="margin-right:auto">YAML Editor</h2>
-              <button id="validate-config" type="button">Validate</button>
-              <button id="save-config" class="primary" type="button">Save</button>
+              <h2 style="margin-right:auto">YAML 编辑器</h2>
+              <button id="validate-config" type="button">校验</button>
+              <button id="save-config" class="primary" type="button">保存</button>
             </div>
-            <div id="config-notice" class="notice">Writing config requires a Web token.</div>
-            <textarea id="config-editor" spellcheck="false" aria-label="config.yaml editor"></textarea>
+            <div id="config-notice" class="notice">写入配置需要 Web 令牌。</div>
+            <textarea id="config-editor" spellcheck="false" aria-label="config.yaml 编辑器"></textarea>
           </div>
         </div>
       </section>
       <section class="content hidden" id="page-settings">
         <div class="panel">
-          <h2>Display</h2>
+          <h2>显示设置</h2>
           <div class="form-grid">
-            <label>Theme
+            <label>主题
               <select id="theme-select">
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                <option value="system">跟随系统</option>
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
               </select>
             </label>
-            <label>Density
+            <label>密度
               <select id="density-select">
-                <option value="comfortable">Comfortable</option>
-                <option value="compact">Compact</option>
+                <option value="comfortable">舒适</option>
+                <option value="compact">紧凑</option>
               </select>
             </label>
-            <label>Auto refresh
+            <label>自动刷新
               <select id="refresh-select">
-                <option value="0">Off</option>
+                <option value="0">关闭</option>
                 <option value="15">15s</option>
                 <option value="30">30s</option>
                 <option value="60">60s</option>
@@ -354,10 +354,11 @@ HTML = """<!doctype html>
       return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
     }
     function showPage(name) {
+      const pageNames = { dashboard: "概览", tasks: "任务", config: "配置", settings: "偏好" };
       document.querySelectorAll("nav button").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === name));
       document.querySelectorAll("main > section").forEach((section) => section.classList.add("hidden"));
       $(`page-${name}`).classList.remove("hidden");
-      setText("page-title", name.charAt(0).toUpperCase() + name.slice(1));
+      setText("page-title", pageNames[name] || name);
       if (name === "config") loadConfig();
     }
     function applyPrefs() {
@@ -383,9 +384,9 @@ HTML = """<!doctype html>
     async function loadAll() {
       try {
         const health = await api("/health");
-        setText("health-line", `Service ok · ${health.version}`);
+        setText("health-line", `服务正常 · ${health.version}`);
       } catch (error) {
-        setText("health-line", "Service unavailable");
+        setText("health-line", "服务不可用");
       }
       await loadTasks();
       await loadSummary();
@@ -410,15 +411,16 @@ HTML = """<!doctype html>
       const failed = state.tasks.filter((task) => task.last_result === "error").length;
       const ok = state.tasks.filter((task) => task.last_result === "success").length;
       $("metrics").innerHTML = [
-        ["Tasks", total, "Configured jobs"],
-        ["Running", running, "Active now"],
-        ["Success", ok, "Latest result"],
-        ["Errors", failed, "Need attention"],
+        ["任务总数", total, "已配置任务"],
+        ["运行中", running, "当前活动"],
+        ["成功", ok, "最近结果"],
+        ["错误", failed, "需要处理"],
       ].map(([label, value, hint]) => `<div class="panel metric"><span class="muted">${label}</span><strong>${value}</strong><span class="muted">${hint}</span></div>`).join("");
     }
     function statusPill(task) {
       const cls = task.running ? "warn" : task.last_result === "error" ? "bad" : task.last_result === "success" ? "ok" : "";
-      const label = task.running ? "Running" : task.last_result || "Idle";
+      const resultLabels = { success: "成功", error: "失败" };
+      const label = task.running ? "运行中" : resultLabels[task.last_result] || "空闲";
       return `<span class="status ${cls}"><span class="dot"></span>${escapeHtml(label)}</span>`;
     }
     function renderTasks() {
@@ -431,19 +433,19 @@ HTML = """<!doctype html>
           <td>${statusPill(task)}</td>
           <td>${escapeHtml(task.last_error || task.last_result || "")}</td>
           <td class="row-actions">${taskButtons(task)}</td>
-        </tr>`).join("") || '<tr><td colspan="6" class="muted">No tasks</td></tr>';
+        </tr>`).join("") || '<tr><td colspan="6" class="muted">暂无任务</td></tr>';
       $("task-cards").innerHTML = rows.map((task) => `
         <div class="panel task-card">
           <h3>${escapeHtml(task.module)}:${escapeHtml(task.id)}</h3>
           ${statusPill(task)}
-          <div class="muted">Cron: ${escapeHtml(fmt(task.cron))}</div>
-          <div class="muted">Next: ${escapeHtml(fmt(task.next_run_time))}</div>
+          <div class="muted">Cron：${escapeHtml(fmt(task.cron))}</div>
+          <div class="muted">下次运行：${escapeHtml(fmt(task.next_run_time))}</div>
           <div class="row-actions">${taskButtons(task)}</div>
         </div>`).join("");
     }
     function taskButtons(task) {
-      return `<button class="primary" type="button" aria-label="Run ${escapeHtml(task.key)}" onclick="runTask('${escapeHtml(task.module)}','${escapeHtml(task.id)}')" ${task.running ? "disabled" : ""}>Run</button>
-        <button type="button" aria-label="Show history ${escapeHtml(task.key)}" onclick="loadHistory('${escapeHtml(task.module)}','${escapeHtml(task.id)}')">History</button>`;
+      return `<button class="primary" type="button" aria-label="运行 ${escapeHtml(task.key)}" onclick="runTask('${escapeHtml(task.module)}','${escapeHtml(task.id)}')" ${task.running ? "disabled" : ""}>运行</button>
+        <button type="button" aria-label="查看历史 ${escapeHtml(task.key)}" onclick="loadHistory('${escapeHtml(task.module)}','${escapeHtml(task.id)}')">历史</button>`;
     }
     async function runTask(moduleName, taskId) {
       try {
@@ -457,15 +459,15 @@ HTML = """<!doctype html>
       const data = await api(`/api/tasks/${encodeURIComponent(moduleName)}/${encodeURIComponent(taskId)}/runs`);
       $("run-history").innerHTML = data.history.length ? data.history.map((run) => `
         <div class="panel" style="margin-top:10px">
-          <strong>${run.success ? "Success" : "Error"}</strong>
+          <strong>${run.success ? "成功" : "失败"}</strong>
           <div class="muted">${escapeHtml(run.started_at || "")} → ${escapeHtml(run.finished_at || "")}</div>
           <div class="error-text">${escapeHtml(run.error || "")}</div>
-        </div>`).join("") : "No history";
+        </div>`).join("") : "暂无历史";
       showPage("tasks");
     }
     function renderRecent() {
       const items = state.tasks.filter((task) => task.updated_at).slice(0, 6);
-      $("recent-activity").innerHTML = items.length ? items.map((task) => `<div>${statusPill(task)} ${escapeHtml(task.key)} <span class="muted">${escapeHtml(task.updated_at)}</span></div>`).join("") : "No activity";
+      $("recent-activity").innerHTML = items.length ? items.map((task) => `<div>${statusPill(task)} ${escapeHtml(task.key)} <span class="muted">${escapeHtml(task.updated_at)}</span></div>`).join("") : "暂无活动";
     }
     async function loadConfig() {
       const reveal = token() ? "?reveal=true" : "";
@@ -476,7 +478,7 @@ HTML = """<!doctype html>
         raw = await api("/api/config/raw");
       }
       $("config-editor").value = raw.content || "";
-      $("config-notice").textContent = raw.write_enabled ? "Token active. Saving creates a backup and applies config.yaml atomically." : "Read-only mode. Set Web token to enable saving.";
+      $("config-notice").textContent = raw.write_enabled ? "令牌已生效。保存时会自动备份并原子替换 config.yaml。" : "只读模式。设置 Web 令牌后才能保存配置。";
       await loadSummary();
       state.backups = await api("/api/config/backups");
       renderBackups();
@@ -486,13 +488,13 @@ HTML = """<!doctype html>
       const counts = state.summary.counts || {};
       const settings = state.summary.settings || {};
       $("config-summary").innerHTML = `
-        <div class="muted">Path: ${escapeHtml(state.summary.path)}</div>
+        <div class="muted">路径：${escapeHtml(state.summary.path)}</div>
         <div style="margin-top:10px">Alist2Strm: <strong>${counts.alist2strm || 0}</strong></div>
         <div>Ani2Alist: <strong>${counts.ani2alist || 0}</strong></div>
-        <div>Notifiers: <strong>${counts.notifiers || 0}</strong></div>
-        <div>Write: <strong>${state.summary.write_enabled ? "enabled" : "read-only"}</strong></div>
+        <div>通知器：<strong>${counts.notifiers || 0}</strong></div>
+        <div>写入：<strong>${state.summary.write_enabled ? "已启用" : "只读"}</strong></div>
         <h3 style="margin-top:14px">Alist2Strm</h3>
-        ${(state.summary.alist2strm || []).map((task) => `<div class="notice" style="margin-top:8px"><strong>${escapeHtml(task.id)}</strong><div class="muted">${escapeHtml(task.mode || "")} · ${escapeHtml(task.source_dir || "")} → ${escapeHtml(task.target_dir || "")}</div></div>`).join("") || '<div class="muted">No tasks</div>'}`;
+        ${(state.summary.alist2strm || []).map((task) => `<div class="notice" style="margin-top:8px"><strong>${escapeHtml(task.id)}</strong><div class="muted">${escapeHtml(task.mode || "")} · ${escapeHtml(task.source_dir || "")} → ${escapeHtml(task.target_dir || "")}</div></div>`).join("") || '<div class="muted">暂无任务</div>'}`;
       $("cfg-web-enabled").value = String(Boolean(settings.web_enabled));
       $("cfg-web-host").value = settings.web_host || "0.0.0.0";
       $("cfg-web-port").value = settings.web_port || 8000;
@@ -503,9 +505,9 @@ HTML = """<!doctype html>
       $("backups").innerHTML = state.backups.length ? state.backups.map((backup) => `
         <div class="notice" style="margin-top:8px">
           <strong>${escapeHtml(backup.name)}</strong>
-          <div class="muted">${escapeHtml(backup.modified)} · ${backup.size} bytes</div>
-          <button type="button" onclick="restoreBackup('${escapeHtml(backup.name)}')">Restore</button>
-        </div>`).join("") : "No backups";
+          <div class="muted">${escapeHtml(backup.modified)} · ${backup.size} 字节</div>
+          <button type="button" onclick="restoreBackup('${escapeHtml(backup.name)}')">恢复</button>
+        </div>`).join("") : "暂无备份";
     }
     async function validateConfig() {
       const result = await api("/api/config/validate", {
@@ -513,7 +515,7 @@ HTML = """<!doctype html>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: $("config-editor").value }),
       });
-      $("config-notice").textContent = result.ok ? "YAML is valid." : "Invalid config.";
+      $("config-notice").textContent = result.ok ? "YAML 校验通过。" : "配置无效。";
     }
     async function saveConfig() {
       try {
@@ -522,7 +524,7 @@ HTML = """<!doctype html>
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ content: $("config-editor").value }),
         });
-        $("config-notice").textContent = `Saved. Backup: ${result.backup || "none"}`;
+        $("config-notice").textContent = `已保存。备份：${result.backup || "无"}`;
         await loadConfig();
       } catch (error) {
         $("config-notice").innerHTML = `<span class="error-text">${escapeHtml(error.message)}</span>`;
@@ -543,7 +545,7 @@ HTML = """<!doctype html>
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(payload),
         });
-        $("config-notice").textContent = `Settings saved. Backup: ${result.backup || "none"}`;
+        $("config-notice").textContent = `常用设置已保存。备份：${result.backup || "无"}`;
         $("cfg-web-token").value = "";
         await loadConfig();
       } catch (error) {
@@ -551,7 +553,7 @@ HTML = """<!doctype html>
       }
     }
     async function restoreBackup(name) {
-      if (!confirm(`Restore ${name}?`)) return;
+      if (!confirm(`确认恢复备份 ${name}？`)) return;
       await api(`/api/config/backup/${encodeURIComponent(name)}/restore`, { method: "POST", headers: authHeaders() });
       await loadConfig();
     }

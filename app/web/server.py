@@ -28,17 +28,17 @@ def _authorize(authorization: str | None = Header(default=None)) -> None:
     if not token:
         return
     if authorization != f"Bearer {token}":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未授权")
 
 
 def _require_write_token(authorization: str | None = Header(default=None)) -> None:
     if not has_write_token():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Web token is required before config writes are enabled",
+            detail="写入配置前必须先设置 Web 令牌",
         )
     if not is_authorized(authorization):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未授权")
 
 
 def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
@@ -59,7 +59,7 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
     async def run_task(module_name: str, task_id: str) -> dict:
         definition = registry.get(module_name, task_id)
         if definition is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(status_code=404, detail="任务不存在")
         try:
             return await registry.run_at(module_name, task_id)
         except TaskAlreadyRunningError as e:
@@ -69,14 +69,14 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
     async def latest_run(module_name: str, task_id: str) -> dict:
         data = registry.latest_run(module_name, task_id)
         if data is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(status_code=404, detail="任务不存在")
         return data
 
     @app.get("/api/tasks/{module_name}/{task_id}/runs")
     async def runs(module_name: str, task_id: str) -> dict:
         data = registry.runs(module_name, task_id)
         if data is None:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(status_code=404, detail="任务不存在")
         return data
 
     @app.get("/api/config/summary")
@@ -89,7 +89,7 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
         authorization: str | None = Header(default=None),
     ) -> dict:
         if reveal and not is_authorized(authorization):
-            raise HTTPException(status_code=401, detail="Unauthorized")
+            raise HTTPException(status_code=401, detail="未授权")
         return {
             "content": read_config_text(reveal=reveal),
             "redacted": not reveal,
