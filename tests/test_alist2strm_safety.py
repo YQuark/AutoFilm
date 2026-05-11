@@ -28,6 +28,10 @@ class TestAlist2StrmPaths(unittest.TestCase):
 
         self.assertEqual(instance._relative_remote_path("/movie/a.mkv"), "movie/a.mkv")
 
+    def test_normalizes_custom_extension(self) -> None:
+        self.assertEqual(Alist2Strm._normalize_ext(" md "), ".md")
+        self.assertEqual(Alist2Strm._normalize_ext(".ZIP"), ".zip")
+
 
 class TestStrmProtectionManager(unittest.TestCase):
     def test_state_file_parent_is_created_on_save(self) -> None:

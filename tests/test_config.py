@@ -48,6 +48,37 @@ class TestSettingManager(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "顶层必须是 YAML 映射"):
                 TempSettingManager(base_dir)
 
+    def test_invalid_hot_reload_interval_uses_default(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            config_dir = base_dir / "config"
+            config_dir.mkdir()
+            (config_dir / "config.yaml").write_text(
+                "Settings:\n  hot_reload_interval: nope\n",
+                encoding="utf-8",
+            )
+
+            settings = TempSettingManager(base_dir)
+
+            self.assertEqual(settings.HotReloadInterval, 30)
+
+    def test_web_settings_defaults_and_bounds(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            config_dir = base_dir / "config"
+            config_dir.mkdir()
+            (config_dir / "config.yaml").write_text(
+                "Settings:\n  web_enabled: true\n  web_port: 99999\n",
+                encoding="utf-8",
+            )
+
+            settings = TempSettingManager(base_dir)
+
+            self.assertTrue(settings.WebEnabled)
+            self.assertEqual(settings.WebHost, "0.0.0.0")
+            self.assertEqual(settings.WebPort, 65535)
+            self.assertEqual(settings.WebToken, "")
+
 
 if __name__ == "__main__":
     unittest.main()

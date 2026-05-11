@@ -1,4 +1,5 @@
 config/config.yaml
+config/state/*
 logs/*.log
 strm/*
 media/*

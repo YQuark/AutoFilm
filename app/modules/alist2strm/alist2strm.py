@@ -89,7 +89,9 @@ class Alist2Strm:
         if nfo:
             download_exts |= NFO_EXTS
         if other_ext:
-            download_exts |= frozenset(other_ext.lower().split(","))
+            download_exts |= frozenset(
+                self._normalize_ext(ext) for ext in other_ext.split(",") if ext.strip()
+            )
 
         self.download_exts = download_exts
         self.process_file_exts = VIDEO_EXTS | download_exts
@@ -410,6 +412,16 @@ class Alist2Strm:
         """
         normalized = "/" + str(path or "/").strip("/")
         return "/" if normalized == "/" else normalized
+
+    @staticmethod
+    def _normalize_ext(ext: str) -> str:
+        """
+        规范化扩展名配置，兼容 ".zip, md" 等写法。
+        """
+        normalized = ext.strip().lower()
+        if not normalized:
+            return ""
+        return normalized if normalized.startswith(".") else f".{normalized}"
 
     def _relative_remote_path(self, full_path: str) -> str:
         """

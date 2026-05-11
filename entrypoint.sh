@@ -7,7 +7,20 @@ chown appuser:appuser /config /logs /media 2>/dev/null || true
 # 从配置文件中提取 target_dir 并授权（排除系统关键目录）
 CONFIG="/config/config.yaml"
 if [ -f "$CONFIG" ]; then
-    awk '/target_dir:/ {gsub(/[" ]/, "", $2); print $2}' "$CONFIG" | while read -r dir; do
+    python - <<'PY' | while read -r dir; do
+from pathlib import Path
+import yaml
+
+config = Path("/config/config.yaml")
+try:
+    data = yaml.safe_load(config.read_text(encoding="utf-8")) or {}
+except Exception:
+    data = {}
+
+for item in data.get("Alist2StrmList", []) or []:
+    if isinstance(item, dict) and item.get("target_dir"):
+        print(item["target_dir"])
+PY
         if [ -d "$dir" ]; then
             case "$dir" in
                 /|/bin|/sbin|/usr|/lib*|/etc|/boot|/dev|/proc|/sys|/run|/tmp|/var|/opt|/snap|/root)

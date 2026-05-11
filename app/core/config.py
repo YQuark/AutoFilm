@@ -88,6 +88,15 @@ class SettingManager:
         return self.BASE_DIR / "logs"
 
     @property
+    def STATE_DIR(self) -> Path:
+        """
+        运行状态文件路径
+        """
+        state_dir = self.CONFIG_DIR / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        return state_dir
+
+    @property
     def CONFIG(self) -> Path:
         """
         配置文件
@@ -130,8 +139,45 @@ class SettingManager:
     def HotReloadInterval(self) -> int:
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
-            return max(5, int(section.get("hot_reload_interval", 30)))
+            value = section.get("hot_reload_interval", 30)
+            try:
+                return max(5, int(value))
+            except (TypeError, ValueError):
+                return 30
         return 30
+
+    @property
+    def WebEnabled(self) -> bool:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            return bool(section.get("web_enabled", False))
+        return False
+
+    @property
+    def WebHost(self) -> str:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            return str(section.get("web_host", "0.0.0.0") or "0.0.0.0")
+        return "0.0.0.0"
+
+    @property
+    def WebPort(self) -> int:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            value = section.get("web_port", 8000)
+            try:
+                port = int(value)
+            except (TypeError, ValueError):
+                return 8000
+            return min(65535, max(1, port))
+        return 8000
+
+    @property
+    def WebToken(self) -> str:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            return str(section.get("web_token", "") or "")
+        return ""
 
 
 settings = SettingManager()

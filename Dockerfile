@@ -20,4 +20,6 @@ RUN mkdir -p /config /logs /media && \
     useradd -r -s /bin/false appuser && \
     chown -R appuser:appuser /app /config /logs /media
 
+EXPOSE 8000
+
 ENTRYPOINT ["/entrypoint.sh"]

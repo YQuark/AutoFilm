@@ -13,9 +13,15 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type:ignore
 from apscheduler.triggers.cron import CronTrigger  # type:ignore
 
 from app.core import settings, logger
+from app.core.state import TaskStateStore
+from app.core.tasks import (
+    TaskAlreadyRunningError,
+    TaskDefinition,
+    TaskRegistry,
+    get_task_id,
+)
 from app.extensions import LOGO
 from app.modules import Alist2Strm, Ani2Alist
-from app.utils.notify import send_notification
 
 
 class _MaxInstancesFilter(logging.Filter):
@@ -38,74 +44,56 @@ def print_logo() -> None:
     print("")
 
 
-def get_task_id(config: dict[str, Any]) -> str:
-    return str(config.get("id") or "<未命名>")
-
-
-async def run_module_task(module_name: str, task_id: str, task: Any) -> None:
-    await send_notification(
-        f"{module_name} 任务开始", f"任务 [{task_id}] 开始执行"
-    )
+async def run_module_task(registry: TaskRegistry, definition: TaskDefinition) -> None:
     try:
-        await task.run()
-        await send_notification(
-            f"{module_name} 任务完成", f"任务 [{task_id}] 执行成功", "success"
-        )
+        await registry.run(definition)
+    except TaskAlreadyRunningError as e:
+        logger.warning(str(e))
     except Exception as e:
-        logger.error(f"{module_name} 任务 {task_id} 执行失败：{e}")
+        logger.error(f"{definition.key} 任务执行异常：{e}")
         logger.debug(traceback.format_exc())
-        await send_notification(
-            f"{module_name} 任务失败",
-            f"任务 [{task_id}] 执行失败：{e}",
-            "error",
-        )
 
 
 async def run_config_task(
-    module_name: str, config: dict[str, Any], task_cls: type
+    registry: TaskRegistry, module_name: str, config: dict[str, Any], task_cls: type
 ) -> None:
     task_id = get_task_id(config)
-    try:
-        task = task_cls(**config)
-    except Exception as e:
-        logger.error(f"{module_name} 任务 {task_id} 初始化失败：{e}")
-        logger.debug(traceback.format_exc())
-        return
-    await run_module_task(module_name, task_id, task)
+    registry.replace_module(module_name, task_cls, [config])
+    definition = registry.get(module_name, task_id)
+    if definition is not None:
+        await run_module_task(registry, definition)
 
 
 def add_scheduled_jobs(
     scheduler: AsyncIOScheduler,
-    configs: list[dict[str, Any]],
-    module_name: str,
-    task_cls: type,
+    registry: TaskRegistry,
+    definitions: list[TaskDefinition],
 ) -> None:
-    for config in configs:
-        task_id = get_task_id(config)
-        cron = config.get("cron")
+    for definition in definitions:
+        cron = definition.config.get("cron")
         if not cron:
-            logger.warning(f"{task_id} 未设置 cron")
+            logger.warning(f"{definition.key} 未设置 cron")
             continue
 
         try:
-            task = task_cls(**config)
             scheduler.add_job(
                 run_module_task,
-                args=[module_name, task_id, task],
+                args=[registry, definition],
                 trigger=CronTrigger.from_crontab(cron),
-                id=task_id,
+                id=definition.key,
                 next_run_time=datetime.now(),
             )
         except Exception as e:
-            logger.error(f"{module_name} 任务 {task_id} 添加失败：{e}")
+            logger.error(f"{definition.key} 添加失败：{e}")
             logger.debug(traceback.format_exc())
             continue
 
-        logger.info(f"{task_id} 已被添加至后台任务")
+        logger.info(f"{definition.key} 已被添加至后台任务")
 
 
 def _reconcile_module(
     scheduler: AsyncIOScheduler,
+    registry: TaskRegistry,
     module_name: str,
     task_cls: type,
     old_configs: list[dict[str, Any]],
@@ -116,40 +104,47 @@ def _reconcile_module(
     new_by_id: dict[str, dict[str, Any]] = {get_task_id(c): c for c in new_configs}
 
     for task_id in set(old_by_id) - set(new_by_id):
+        job_id = f"{module_name}:{task_id}"
         try:
-            scheduler.remove_job(task_id)
-            logger.info(f"[热重载] 移除任务: {task_id}")
+            scheduler.remove_job(job_id)
+            logger.info(f"[热重载] 移除任务: {job_id}")
         except Exception as e:
-            logger.warning(f"[热重载] 移除任务 {task_id} 失败: {e}")
+            logger.warning(f"[热重载] 移除任务 {job_id} 失败: {e}")
+
+    definitions = {
+        definition.task_id: definition
+        for definition in registry.replace_module(module_name, task_cls, new_configs)
+    }
 
     for task_id, new_config in new_by_id.items():
+        job_id = f"{module_name}:{task_id}"
         old_config = old_by_id.get(task_id)
         if old_config is not None and old_config == new_config:
             continue
 
         if old_config is not None:
             try:
-                scheduler.remove_job(task_id)
+                scheduler.remove_job(job_id)
             except Exception:
                 pass
 
         cron = new_config.get("cron")
         if not cron:
-            logger.warning(f"[热重载] 任务 {task_id} 未设置 cron，跳过")
+            logger.warning(f"[热重载] 任务 {job_id} 未设置 cron，跳过")
             continue
 
         try:
-            task = task_cls(**new_config)
+            definition = definitions[task_id]
             scheduler.add_job(
                 run_module_task,
-                args=[module_name, task_id, task],
+                args=[registry, definition],
                 trigger=CronTrigger.from_crontab(cron),
-                id=task_id,
+                id=definition.key,
                 next_run_time=datetime.now(),
             )
-            logger.info(f"[热重载] 任务已更新: {task_id}")
+            logger.info(f"[热重载] 任务已更新: {definition.key}")
         except Exception as e:
-            logger.error(f"[热重载] 添加任务 {task_id} 失败: {e}")
+            logger.error(f"[热重载] 添加任务 {job_id} 失败: {e}")
             logger.debug(traceback.format_exc())
 
     return list(new_configs.values())
@@ -157,6 +152,7 @@ def _reconcile_module(
 
 async def _hot_reload_watcher(
     scheduler: AsyncIOScheduler,
+    registry: TaskRegistry,
     alist_configs: list[dict[str, Any]],
     ani_configs: list[dict[str, Any]],
     interval: int,
@@ -186,18 +182,36 @@ async def _hot_reload_watcher(
             new_ani = settings.Ani2AlistList
 
             alist_configs[:] = _reconcile_module(
-                scheduler, "Alist2Strm", Alist2Strm, alist_configs, new_alist
+                scheduler, registry, "Alist2Strm", Alist2Strm, alist_configs, new_alist
             )
             ani_configs[:] = _reconcile_module(
-                scheduler, "Ani2Alist", Ani2Alist, ani_configs, new_ani
+                scheduler, registry, "Ani2Alist", Ani2Alist, ani_configs, new_ani
             )
         except Exception as e:
             logger.error(f"[热重载] 重载失败: {e}")
             logger.debug(traceback.format_exc())
 
 
+async def _start_web_server(registry: TaskRegistry, scheduler: AsyncIOScheduler) -> None:
+    import uvicorn
+
+    from app.web.server import create_app
+
+    config = uvicorn.Config(
+        create_app(registry, scheduler),
+        host=settings.WebHost,
+        port=settings.WebPort,
+        log_level="warning",
+    )
+    server = uvicorn.Server(config)
+    logger.info(f"Web 服务已启用：http://{settings.WebHost}:{settings.WebPort}")
+    await server.serve()
+
+
 async def main() -> None:
     args = parse_args()
+    state_store = TaskStateStore(settings.STATE_DIR)
+    registry = TaskRegistry(state_store)
 
     # 手动模式：执行一次后退出
     if args.run or args.run_all:
@@ -208,13 +222,13 @@ async def main() -> None:
                 matched = True
                 task_id = get_task_id(server)
                 logger.info(f"手动执行 Alist2Strm 任务：{task_id}")
-                await run_config_task("Alist2Strm", server, Alist2Strm)
+                await run_config_task(registry, "Alist2Strm", server, Alist2Strm)
         for server in settings.Ani2AlistList:
             if args.run_all or server.get("id") == target:
                 matched = True
                 task_id = get_task_id(server)
                 logger.info(f"手动执行 Ani2Alist 任务：{task_id}")
-                await run_config_task("Ani2Alist", server, Ani2Alist)
+                await run_config_task(registry, "Ani2Alist", server, Ani2Alist)
         if args.run and not matched:
             logger.warning(f"未找到 ID 为 {target} 的任务")
         logger.info("手动执行完成")
@@ -231,13 +245,15 @@ async def main() -> None:
 
     if alist_configs:
         logger.info("检测到 Alist2Strm 模块配置，正在添加至后台任务")
-        add_scheduled_jobs(scheduler, alist_configs, "Alist2Strm", Alist2Strm)
+        definitions = registry.replace_module("Alist2Strm", Alist2Strm, alist_configs)
+        add_scheduled_jobs(scheduler, registry, definitions)
     else:
         logger.warning("未检测到 Alist2Strm 模块配置")
 
     if ani_configs:
         logger.info("检测到 Ani2Alist 模块配置，正在添加至后台任务")
-        add_scheduled_jobs(scheduler, ani_configs, "Ani2Alist", Ani2Alist)
+        definitions = registry.replace_module("Ani2Alist", Ani2Alist, ani_configs)
+        add_scheduled_jobs(scheduler, registry, definitions)
     else:
         logger.warning("未检测到 Ani2Alist 模块配置")
 
@@ -250,6 +266,7 @@ async def main() -> None:
         asyncio.create_task(
             _hot_reload_watcher(
                 scheduler,
+                registry,
                 alist_configs,
                 ani_configs,
                 settings.HotReloadInterval,
@@ -257,6 +274,11 @@ async def main() -> None:
         )
     else:
         logger.info("配置文件热重载已禁用")
+
+    if settings.WebEnabled:
+        asyncio.create_task(_start_web_server(registry, scheduler))
+    else:
+        logger.info("Web 服务已禁用")
 
     await asyncio.Event().wait()
 

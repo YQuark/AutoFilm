@@ -38,7 +38,7 @@
 # 部署方式
 1. Docker 运行
     ```bash
-    docker run -d --name autofilm  -v ./config:/config -v ./media:/media -v ./logs:/logs akimio/autofilm
+    docker run -d --name autofilm -p 8000:8000 -v ./config:/config -v ./media:/media -v ./logs:/logs yquark/autofilm
     ```
 2. Python 环境运行（Python3.12）
     ```bash
@@ -54,6 +54,23 @@ python app/main.py --run AV
 python app/main.py --run-all
 ```
 > Docker 环境可通过 `docker exec` 执行：`docker exec autofilm python /app/main.py --run AV`
+
+## Web UI / API
+v2.0.0 新增轻量 Web UI 与 API，默认关闭。需要启用时在 `Settings` 中增加：
+```yaml
+web_enabled: True
+web_host: 0.0.0.0
+web_port: 8000
+web_token: "change-me"
+```
+
+- Web UI: `http://localhost:8000/`
+- 健康检查: `GET /health`
+- 任务列表: `GET /api/tasks`
+- 手动触发: `POST /api/tasks/{module}/{id}/run`
+- 最近运行: `GET /api/tasks/{module}/{id}/runs/latest`
+
+当 `web_token` 非空时，触发任务需要请求头：`Authorization: Bearer change-me`。
 
 # Strm文件优点
 - [x] 轻量化 Emby 服务器，降低 Emby 服务器的性能需求以及硬盘需求
@@ -71,11 +88,12 @@ python app/main.py --run-all
 - [x] 通知功能（Telegram / Bark / Webhook）
 - [x] 配置文件热重载（修改 config.yaml 无需重启）
 - [x] 增量扫描（跳过未变更文件，大幅减少重复运行时间）
-- [ ] 使用 API 触发任务
+- [x] 使用 API 触发任务（v2.0.0 轻量 API / Web UI）
 - [ ] ~~对接 TMDB 实现分类、重命名、刮削等功能~~
     > 已经向 [MoviePilot](https://github.com/jxxghp/MoviePilot) 提交支持对 Alist 服务器文件的操作功能的 PR，目前已经合并进入主线分支，可以直接使用 MoviePilot 直接刮削
 
 # 更新日志
+- 2026.5.11：v2.0.0，平台化大版本：新增统一任务注册与运行状态持久化，支持轻量 Web UI / API 查看任务、手动触发任务、查询最近运行结果；任务调度 ID 改为模块隔离，避免 Alist2Strm / Ani2Alist 同名任务冲突；修复 HTTP 分片下载 headers 共享导致 Range 串扰的风险；增强配置容错、other_ext 解析和 Docker entrypoint 的 YAML 解析；README Docker 镜像名统一为 yquark/autofilm。
 - 2026.5.11：v1.6.0，新增通知模块（Telegram / Bark / Webhook 推送，任务开始/完成/失败/保护触发自动通知）；新增配置文件热重载（修改 config.yaml 无需重启容器，自动 diff 增删改定时任务）；新增增量扫描（持久化文件清单，后续运行跳过未变更文件，大幅减少重复扫描开销）；移除 LibraryPoster 模块及 photo/fonts/numpy/scikit-learn/pillow/pypinyin 依赖链；移除孤立模块 filetransfer/extensions.media/StringsUtils；移除 AlistUtils.sign/URLUtils.get_resolve_url 等死方法；清理 AlistPath 未使用字段和 demo __main__ 块；Docker 镜像精简（移除 fonts 目录及可选依赖安装）
 - 2026.5.10：v1.5.3，目录遍历并行化（同级子目录并发扫描，大幅提升大库遍历速度）；新增 `--run` / `--run-all` 手动触发模式；容器启动时立即执行首次任务；代码审计修复（可变默认参数、Range header、Token 竞态、TOCTOU 等）；删除未使用的 themoviedb 模块；numpy/scikit-learn 改为可选依赖
 - 2025.9.26：v1.5.0，支持 BDMV 蓝光原盘文件结构，引入 Alist2StrmMode 枚举以简化模式管理，优化 LibraryPoster 对多路径媒体库的处理

@@ -78,7 +78,7 @@ class AlistClient(metaclass=Multiton):
         """
 
         if auth:
-            headers = kwargs.get("headers", {})
+            headers = dict(kwargs.get("headers") or {})
             headers["Authorization"] = await self._get_token()
             kwargs["headers"] = headers
         resp = await self.__client.request(method, url, **kwargs, sync=False)

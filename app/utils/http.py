@@ -111,7 +111,7 @@ class HTTPClient:
         :param kwargs: 其他请求参数，如 headers, cookies 等
         :return: HTTP 响应对象
         """
-        headers = kwargs.get("headers", self.HEADERS)
+        headers = dict(kwargs.get("headers") or self.HEADERS)
         kwargs["headers"] = headers
         if sync:
             return self._sync_request(method, url, **kwargs)
@@ -314,7 +314,7 @@ class HTTPClient:
         await to_thread(makedirs, file_path.parent, exist_ok=True)
 
         if end != 0:
-            headers = kwargs.get("headers", {})
+            headers = dict(kwargs.get("headers") or {})
             headers["Range"] = f"bytes={start}-{end}"
             kwargs["headers"] = headers
 

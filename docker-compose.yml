@@ -1,0 +1,16 @@
+services:
+  autofilm:
+    image: yquark/autofilm:latest
+    container_name: autofilm
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config:/config
+      - ./media:/media
+      - ./logs:/logs
+    environment:
+      TZ: Asia/Shanghai
