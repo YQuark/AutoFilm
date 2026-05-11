@@ -37,6 +37,7 @@ class Alist2Strm:
         sync_server: bool = False,
         sync_ignore: str | None = None,
         smart_protection: dict | None = None,
+        incremental: bool = True,
         **_,
     ) -> None:
         """
@@ -65,6 +66,7 @@ class Alist2Strm:
         :param smart_protection: 智能保护配置 {enabled: bool, threshold: int, grace_scans: int}
         """
 
+        self.task_id = id
         self.client = AlistClient(url, username, password, token)
         self.mode = Alist2StrmMode.from_str(mode)
         
@@ -115,6 +117,8 @@ class Alist2Strm:
         else:
             self.strm_protection = None
 
+        self.incremental = incremental
+
     async def run(self) -> None:
         """
         处理主体
@@ -123,6 +127,17 @@ class Alist2Strm:
         # BDMV 处理相关变量初始化
         self.bdmv_collections: dict[str, list[tuple[AlistPath, int]]] = {}  # BDMV目录 -> [(文件路径, 文件大小)]
         self.bdmv_largest_files: dict[str, AlistPath] = {}  # BDMV目录 -> 最大文件路径
+
+        # 增量扫描清单
+        if self.incremental:
+            from app.modules.alist2strm.manifest import ScanManifest
+            self.__manifest = ScanManifest(self.target_dir, self.task_id)
+            self.__manifest.load()
+            self.__manifest_keys: set[str] = set()
+            logger.info(f"增量扫描已启用，清单现有 {self.__manifest.entry_count} 个条目")
+        else:
+            self.__manifest = None
+            self.__manifest_keys = set()
 
         def filter(path: AlistPath) -> bool:
             """
@@ -162,6 +177,21 @@ class Alist2Strm:
                 return False
 
             self.processed_local_paths.add(local_path)
+
+            # 增量扫描：记录 manifest key
+            if self.__manifest is not None:
+                self.__manifest_keys.add(path.full_path)
+
+            # 增量扫描：跳过未变更的文件（manifest 中有记录且 mtime+size 匹配）
+            if self.__manifest is not None and not self.overwrite:
+                if not self.__manifest.is_changed(
+                    path.full_path, path.modified_timestamp, path.size
+                ):
+                    try:
+                        if local_path.exists():
+                            return False
+                    except OSError:
+                        pass
 
             if not self.overwrite:
                 try:
@@ -230,6 +260,22 @@ class Alist2Strm:
         # 第二阶段：处理 BDMV 最大文件
         logger.info(f"开始处理 {len(self.bdmv_largest_files)} 个 BDMV 目录")
         for bdmv_root, largest_file in self.bdmv_largest_files.items():
+            bdmv_key = f"bdmv:{bdmv_root}"
+            if self.__manifest is not None:
+                self.__manifest_keys.add(bdmv_key)
+
+            if self.__manifest is not None and not self.overwrite:
+                if not self.__manifest.is_changed(
+                    bdmv_key, largest_file.modified_timestamp, largest_file.size
+                ):
+                    local_path = self.__get_local_path(largest_file)
+                    self.processed_local_paths.add(local_path)
+                    try:
+                        if local_path.exists():
+                            logger.info(f"BDMV {bdmv_root} 未变更，跳过处理")
+                            continue
+                    except OSError:
+                        pass
             try:
                 logger.info(f"处理 BDMV 目录: {bdmv_root}")
                 logger.info(f"最大文件: {largest_file.full_path}")
@@ -252,7 +298,14 @@ class Alist2Strm:
                 # 添加到已处理路径列表
                 local_path = self.__get_local_path(largest_file)
                 self.processed_local_paths.add(local_path)
-                
+
+                if self.__manifest is not None:
+                    self.__manifest.mark_processed(
+                        bdmv_key,
+                        largest_file.modified_timestamp,
+                        largest_file.size,
+                    )
+
                 logger.info(f"BDMV 文件处理完成: {largest_file.name}")
             except Exception as e:
                 logger.error(f"处理 BDMV 文件 {largest_file.full_path} 时出错：{e}")
@@ -262,6 +315,12 @@ class Alist2Strm:
         if self.sync_server:
             await self.__cleanup_local_files()
             logger.info("清理过期的 .strm 文件完成")
+
+        if self.__manifest is not None:
+            self.__manifest.prune_stale(self.__manifest_keys)
+            self.__manifest.save()
+            logger.info(f"扫描清单已更新: {self.__manifest.entry_count} 个条目")
+
         logger.info("Alist2Strm 处理完成")
 
     async def __file_processer(self, path: AlistPath) -> None:
@@ -301,6 +360,11 @@ class Alist2Strm:
             async with self.__max_downloaders:
                 await RequestUtils.download(path.download_url, local_path)
                 logger.info(f"{local_path.name} 下载成功")
+
+        if self.__manifest is not None:
+            self.__manifest.mark_processed(
+                path.full_path, path.modified_timestamp, path.size
+            )
 
     def __get_local_path(self, path: AlistPath) -> Path:
         """
@@ -379,7 +443,13 @@ class Alist2Strm:
 
         all_local_files = [
             f for f in all_local_files
-            if not (f.name.startswith(".autofilm_strm_") and f.suffix == ".json")
+            if not (
+                f.suffix == ".json"
+                and (
+                    f.name.startswith(".autofilm_strm_")
+                    or f.name.startswith(".autofilm_manifest_")
+                )
+            )
         ]
 
         files_to_delete = set(all_local_files) - self.processed_local_paths
@@ -397,9 +467,18 @@ class Alist2Strm:
         other_files = files_to_delete - strm_to_delete
         
         if self.strm_protection:
+            strm_to_delete_before = len(strm_to_delete)
             strm_to_delete = self.strm_protection.process(strm_to_delete, strm_present)
             self.strm_protection.save()
-        
+            if len(strm_to_delete) < strm_to_delete_before:
+                from app.utils.notify import send_notification
+                await send_notification(
+                    "Alist2Strm 保护触发",
+                    f"任务 [{self.task_id}]: {strm_to_delete_before} 个文件待删除，"
+                    f"{strm_to_delete_before - len(strm_to_delete)} 个被保护延后",
+                    "warning",
+                )
+
         files_to_delete = strm_to_delete | other_files
         
         for file_path in files_to_delete:

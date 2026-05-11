@@ -23,7 +23,6 @@ class TestSettingManager(unittest.TestCase):
             self.assertFalse(settings.DEBUG)
             self.assertEqual(settings.AlistServerList, [])
             self.assertEqual(settings.Ani2AlistList, [])
-            self.assertEqual(settings.LibraryPosterList, [])
             self.assertTrue(settings.CONFIG_DIR.exists())
             self.assertTrue(settings.LOG_DIR.exists())
 

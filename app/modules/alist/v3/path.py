@@ -1,5 +1,3 @@
-from re import sub
-from typing import Any
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -27,14 +25,9 @@ class AlistPath(BaseModel):
     thumb: str  # 缩略图
     type: int  # 类型
     hashinfo: str  # 哈希信息（字符串）
-    hash_info: dict | None = None  # 哈希信息（键值对）
 
     # g/api/fs/get 返回新增的字段（详细信息）
     raw_url: str | None = None  # 原始地址
-    readme: str | None = None  # Readme 地址
-    header: str | None = None  # 头部信息
-    provider: str | None = None  # 提供者
-    related: Any = None  # 相关信息
 
     @property
     def abs_path(self) -> str:
@@ -54,13 +47,6 @@ class AlistPath(BaseModel):
             url = self.server_url + "/d" + self.abs_path
 
         return URLUtils.encode(url)
-
-    @property
-    def proxy_download_url(self) -> str:
-        """
-        Alist代理下载地址
-        """
-        return sub("/d/", "/p/", self.download_url, 1)
 
     @property
     def suffix(self) -> str:
@@ -88,10 +74,3 @@ class AlistPath(BaseModel):
         获得修改时间的时间戳
         """
         return self.__parse_timestamp(self.modified)
-
-    @property
-    def created_timestamp(self) -> float:
-        """
-        获得创建时间的时间戳
-        """
-        return self.__parse_timestamp(self.created)

@@ -1,13 +1,13 @@
 [license]: /LICENSE
-[license-badge]: https://img.shields.io/github/license/AkimioJR/AutoFilm?style=flat-square&a=1
-[prs]: https://github.com/AkimioJR/AutoFilm
+[license-badge]: https://img.shields.io/github/license/yquark/AutoFilm?style=flat-square&a=1
+[prs]: https://github.com/yquark/AutoFilm
 [prs-badge]: https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square
-[issues]: https://github.com/AkimioJR/AutoFilm/issues/new
+[issues]: https://github.com/yquark/AutoFilm/issues/new
 [issues-badge]: https://img.shields.io/badge/Issues-welcome-brightgreen.svg?style=flat-square
-[release]: https://github.com/AkimioJR/AutoFilm/releases/latest
-[release-badge]: https://img.shields.io/github/v/release/AkimioJR/AutoFilm?style=flat-square
-[docker]: https://hub.docker.com/r/akimio/autofilm
-[docker-badge]: https://img.shields.io/docker/pulls/akimio/autofilm?color=%2348BB78&logo=docker&label=pulls
+[release]: https://github.com/yquark/AutoFilm/releases/latest
+[release-badge]: https://img.shields.io/github/v/release/yquark/AutoFilm?style=flat-square
+[docker]: https://hub.docker.com/r/yquark/autofilm
+[docker-badge]: https://img.shields.io/docker/pulls/yquark/autofilm?color=%2348BB78&logo=docker&label=pulls
 
 <div align="center">
 
@@ -67,19 +67,16 @@ python app/main.py --run-all
 - [x] 增加 Docker 镜像
 - [x] 本地同步网盘
 - [x] Alist 永久令牌
-- [x] LibraryPoster（媒体库海报，感谢[HappyQuQu/jellyfin-library-poster](https://github.com/HappyQuQu/jellyfin-library-poster)）
+- [x] LibraryPoster（媒体库海报）-> 已移除（v1.6.0 代码精简）
+- [x] 通知功能（Telegram / Bark / Webhook）
+- [x] 配置文件热重载（修改 config.yaml 无需重启）
+- [x] 增量扫描（跳过未变更文件，大幅减少重复运行时间）
 - [ ] 使用 API 触发任务
-- [ ] 通知功能
 - [ ] ~~对接 TMDB 实现分类、重命名、刮削等功能~~
     > 已经向 [MoviePilot](https://github.com/jxxghp/MoviePilot) 提交支持对 Alist 服务器文件的操作功能的 PR，目前已经合并进入主线分支，可以直接使用 MoviePilot 直接刮削
 
-# 功能演示
-## LibraryPoster
-美化媒体库海报封面图
-
-![LibraryPoster](./img/LibraryPoster.png)
-
 # 更新日志
+- 2026.5.11：v1.6.0，新增通知模块（Telegram / Bark / Webhook 推送，任务开始/完成/失败/保护触发自动通知）；新增配置文件热重载（修改 config.yaml 无需重启容器，自动 diff 增删改定时任务）；新增增量扫描（持久化文件清单，后续运行跳过未变更文件，大幅减少重复扫描开销）；移除 LibraryPoster 模块及 photo/fonts/numpy/scikit-learn/pillow/pypinyin 依赖链；移除孤立模块 filetransfer/extensions.media/StringsUtils；移除 AlistUtils.sign/URLUtils.get_resolve_url 等死方法；清理 AlistPath 未使用字段和 demo __main__ 块；Docker 镜像精简（移除 fonts 目录及可选依赖安装）
 - 2026.5.10：v1.5.3，目录遍历并行化（同级子目录并发扫描，大幅提升大库遍历速度）；新增 `--run` / `--run-all` 手动触发模式；容器启动时立即执行首次任务；代码审计修复（可变默认参数、Range header、Token 竞态、TOCTOU 等）；删除未使用的 themoviedb 模块；numpy/scikit-learn 改为可选依赖
 - 2025.9.26：v1.5.0，支持 BDMV 蓝光原盘文件结构，引入 Alist2StrmMode 枚举以简化模式管理，优化 LibraryPoster 对多路径媒体库的处理
 - 2025.7.14：v1.4.0，修复 Ani2Alist 模块时间解析问题，新增 LibraryPoster 美化媒体库封面模块
@@ -98,11 +95,7 @@ python app/main.py --run-all
 - 2024.1.28：v0.1.1，初始版本持续迭代
 
 # 贡献者
-<a href="https://github.com/AkimioJR/AutoFilm/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=AkimioJR/AutoFilm" />
+<a href="https://github.com/yquark/AutoFilm/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=yquark/AutoFilm" />
 </a>
 
-# Star History
-<a href="https://github.com/AkimioJR/AutoFilm/stargazers">
-    <img width="500" alt="Star History Chart" src="https://api.star-history.com/svg?repos=AkimioJR/AutoFilm&type=Date">
-</a> 

@@ -5,8 +5,7 @@ from app.utils.retry import Retry as Retry
 from app.utils.url import URLUtils as URLUtils
 from app.utils.singleton import Singleton as Singleton
 from app.utils.multiton import Multiton as Multiton
-from app.utils.strings import StringsUtils as StringsUtils
-from app.utils.photo import PhotoUtils as PhotoUtils
+from app.utils.notify import send_notification as send_notification
 
 __all__ = [
     "RequestUtils",
@@ -16,6 +15,5 @@ __all__ = [
     "URLUtils",
     "Singleton",
     "Multiton",
-    "StringsUtils",
-    "PhotoUtils",
+    "send_notification",
 ]

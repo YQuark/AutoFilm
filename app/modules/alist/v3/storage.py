@@ -53,33 +53,3 @@ class AlistStorage(BaseModel):
             raise ValueError(f"存储器状态错误，{status=}, {disabled=}")
         return values
 
-
-if __name__ == "__main__":
-    info = {
-        "id": 1,
-        "mount_path": "/lll",
-        "order": 0,
-        "driver": "Local",
-        "cache_expiration": 0,
-        "status": "work",
-        "addition": '{"root_folder_path":"/root/www","thumbnail":false,"thumb_cache_folder":"","show_hidden":true,"mkdir_perm":"777"}',
-        "remark": "",
-        "modified": "2023-07-19T09:46:38.868739912+08:00",
-        "disabled": False,
-        "enable_sign": False,
-        "order_by": "name",
-        "order_direction": "asc",
-        "extract_folder": "front",
-        "web_proxy": False,
-        "webdav_policy": "native_proxy",
-        "down_proxy_url": "",
-    }
-    storage = AlistStorage(**info)
-    print(storage)
-    print(storage.addition2dict)
-    storage.set_addition_by_dict({"test": 1})
-    print(storage.addition)
-    print(storage.addition2dict)
-    storage.addition = '{"test": 2}'
-    print(storage.addition)
-    print(storage.addition2dict)

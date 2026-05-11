@@ -10,15 +10,14 @@ RUN apt-get update && \
 COPY requirements.txt requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt && \
-    pip install numpy==2.3.1 scikit-learn==1.7.0 2>/dev/null || true && \
     rm requirements.txt
 
 COPY app /app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-RUN mkdir -p /config /logs /media /fonts && \
+RUN mkdir -p /config /logs /media && \
     useradd -r -s /bin/false appuser && \
-    chown -R appuser:appuser /app /config /logs /media /fonts
+    chown -R appuser:appuser /app /config /logs /media
 
 ENTRYPOINT ["/entrypoint.sh"]

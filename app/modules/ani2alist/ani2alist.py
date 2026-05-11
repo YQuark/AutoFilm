@@ -260,44 +260,6 @@ class Ani2Alist:
         feeds = parse(resp.text)
 
         for entry in feeds.entries:
-            """
-            print(type(entry))
-            print(entry)
-
-            type: <class 'feedparser.util.FeedParserDict'>
-            {
-                "title": "[ANi] FAIRY TAIL 魔導少年 百年任務 - 18 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
-                "title_detail": {
-                    "type": "text/plain",
-                    "language": None,
-                    "base": "",
-                    "value": "[ANi] FAIRY TAIL 魔導少年 百年任務 - 18 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
-                },
-                "links": [
-                    {
-                        "rel": "alternate",
-                        "type": "text/html",
-                        "href": "https://resources.ani.rip/2024-7/%5BANi%5D%20FAIRY%20TAIL%20%E9%AD%94%E5%B0%8E%E5%B0%91%E5%B9%B4%20%E7%99%BE%E5%B9%B4%E4%BB%BB%E5%8B%99%20-%2018%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4?d=true",
-                    }
-                ],
-                "link": "https://resources.ani.rip/2024-7/%5BANi%5D%20FAIRY%20TAIL%20%E9%AD%94%E5%B0%8E%E5%B0%91%E5%B9%B4%20%E7%99%BE%E5%B9%B4%E4%BB%BB%E5%8B%99%20-%2018%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4?d=true",
-                "id": "https://resources.ani.rip/2024-7/%5BANi%5D%20FAIRY%20TAIL%20%E9%AD%94%E5%B0%8E%E5%B0%91%E5%B9%B4%20%E7%99%BE%E5%B9%B4%E4%BB%BB%E5%8B%99%20-%2018%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4?d=true",
-                "guidislink": False,
-                "published": "Sun, 10 Nov 2024 09:01:47 GMT",
-                "published_parsed": time.struct_time(
-                    tm_year=2024,
-                    tm_mon=11,
-                    tm_mday=10,
-                    tm_hour=9,
-                    tm_min=1,
-                    tm_sec=47,
-                    tm_wday=6,
-                    tm_yday=315,
-                    tm_isdst=0,
-                ),
-                "anime_size": "473.0 MB",
-            }
-            """
             try:
                 handle_recursive(url_dict, entry)
             except (AttributeError, KeyError, ValueError) as e:

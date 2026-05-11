@@ -14,8 +14,6 @@ class SettingManager:
     APP_NAME: str = "Autofilm"
     # APP 版本
     APP_VERSION: str = APP_VERSION
-    # 时区
-    TZ: str = "Asia/Shanghai"
     # 开发者模式
     DEBUG: bool = False
 
@@ -117,9 +115,23 @@ class SettingManager:
         return ani2alist_list if isinstance(ani2alist_list, list) else []
 
     @property
-    def LibraryPosterList(self) -> list[dict[str, Any]]:
-        library_poster_list = self.__get_section("LibraryPosterList", [])
-        return library_poster_list if isinstance(library_poster_list, list) else []
+    def NotifierList(self) -> list[dict[str, Any]]:
+        notifier_list = self.__get_section("NotifierList", [])
+        return notifier_list if isinstance(notifier_list, list) else []
+
+    @property
+    def HotReloadEnabled(self) -> bool:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            return section.get("hot_reload", True)
+        return True
+
+    @property
+    def HotReloadInterval(self) -> int:
+        section = self.__get_section("Settings", {})
+        if isinstance(section, dict):
+            return max(5, int(section.get("hot_reload_interval", 30)))
+        return 30
 
 
 settings = SettingManager()

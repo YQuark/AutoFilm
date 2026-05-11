@@ -14,7 +14,6 @@ VIDEO_EXTS: Final = frozenset(
         ".m2ts",
     )
 )  # 视频文件后缀
-EXTENDED_VIDEO_EXTS: Final = VIDEO_EXTS.union((".strm",))  # 扩展视频文件后缀
 
 SUBTITLE_EXTS: Final = frozenset((".ass", ".srt", ".ssa", ".sub"))  # 字幕文件后缀
 

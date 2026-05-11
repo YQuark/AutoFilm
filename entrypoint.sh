@@ -2,7 +2,7 @@
 # 以 root 身份修正挂载目录权限，再以 appuser 身份启动应用
 set -e
 
-chown appuser:appuser /config /logs /media /fonts 2>/dev/null || true
+chown appuser:appuser /config /logs /media 2>/dev/null || true
 
 # 从配置文件中提取 target_dir 并授权（排除系统关键目录）
 CONFIG="/config/config.yaml"
