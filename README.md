@@ -38,7 +38,11 @@
 # 部署方式
 1. Docker 运行
     ```bash
-    docker run -d --name autofilm -p 8000:8000 -v ./config:/config -v ./media:/media -v ./logs:/logs yquark/autofilm
+    docker run -d --name autofilm -p 8000:8000 -e AUTOFILM_WEB_ENABLED=true -v ./config:/config -v ./media:/media -v ./logs:/logs yquark/autofilm
+    ```
+    或使用 Docker Compose：
+    ```bash
+    docker compose up -d --build
     ```
 2. Python 环境运行（Python3.12）
     ```bash
@@ -56,7 +60,7 @@ python app/main.py --run-all
 > Docker 环境可通过 `docker exec` 执行：`docker exec autofilm python /app/main.py --run AV`
 
 ## Web UI / API
-v2.0.0 新增轻量 Web UI 与 API，默认关闭。需要启用时在 `Settings` 中增加：
+v2.0.0 新增轻量 Web UI 与 API。`docker-compose.yml` 默认启用 Web；直接运行 Docker 时可通过 `-e AUTOFILM_WEB_ENABLED=true` 启用。也可以在 `Settings` 中增加：
 ```yaml
 web_enabled: True
 web_host: 0.0.0.0

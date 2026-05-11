@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from app.core.config import SettingManager
 
@@ -78,6 +79,25 @@ class TestSettingManager(unittest.TestCase):
             self.assertEqual(settings.WebHost, "0.0.0.0")
             self.assertEqual(settings.WebPort, 65535)
             self.assertEqual(settings.WebToken, "")
+
+    def test_web_settings_can_use_environment_overrides(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch.dict(
+                "os.environ",
+                {
+                    "AUTOFILM_WEB_ENABLED": "true",
+                    "AUTOFILM_WEB_HOST": "127.0.0.1",
+                    "AUTOFILM_WEB_PORT": "9000",
+                    "AUTOFILM_WEB_TOKEN": "secret",
+                },
+                clear=False,
+            ):
+                settings = TempSettingManager(Path(temp_dir))
+
+                self.assertTrue(settings.WebEnabled)
+                self.assertEqual(settings.WebHost, "127.0.0.1")
+                self.assertEqual(settings.WebPort, 9000)
+                self.assertEqual(settings.WebToken, "secret")
 
 
 if __name__ == "__main__":

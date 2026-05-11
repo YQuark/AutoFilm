@@ -1,4 +1,5 @@
 from pathlib import Path
+from os import getenv
 from yaml import YAMLError, safe_load
 from typing import Any
 
@@ -65,6 +66,23 @@ class SettingManager:
         获取配置段，保持缺失字段使用默认值的兼容行为。
         """
         return self.__load_config().get(name, default)
+
+    @staticmethod
+    def __env_bool(name: str) -> bool | None:
+        value = getenv(name)
+        if value is None:
+            return None
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    @staticmethod
+    def __env_int(name: str) -> int | None:
+        value = getenv(name)
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
 
     @property
     def BASE_DIR(self) -> Path:
@@ -148,6 +166,9 @@ class SettingManager:
 
     @property
     def WebEnabled(self) -> bool:
+        env_value = self.__env_bool("AUTOFILM_WEB_ENABLED")
+        if env_value is not None:
+            return env_value
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
             return bool(section.get("web_enabled", False))
@@ -155,6 +176,9 @@ class SettingManager:
 
     @property
     def WebHost(self) -> str:
+        env_value = getenv("AUTOFILM_WEB_HOST")
+        if env_value:
+            return env_value
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
             return str(section.get("web_host", "0.0.0.0") or "0.0.0.0")
@@ -162,6 +186,9 @@ class SettingManager:
 
     @property
     def WebPort(self) -> int:
+        env_value = self.__env_int("AUTOFILM_WEB_PORT")
+        if env_value is not None:
+            return min(65535, max(1, env_value))
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
             value = section.get("web_port", 8000)
@@ -174,6 +201,9 @@ class SettingManager:
 
     @property
     def WebToken(self) -> str:
+        env_value = getenv("AUTOFILM_WEB_TOKEN")
+        if env_value is not None:
+            return env_value
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
             return str(section.get("web_token", "") or "")
