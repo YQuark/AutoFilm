@@ -22,7 +22,7 @@ Alist2StrmList:
     nfo: False                              # 是否下载 .nfo 文件（可选，默认 False）
     mode: AlistURL                          # Strm 文件中的内容（可选项：AlistURL、RawURL、AlistPath）
     overwrite: False                        # 覆盖模式，本地路径存在同名文件时是否重新生成/下载该文件（可选，默认 False）
-    sync_server: True                       # 是否同步服务器（可选，默认为 True）
+    sync_server: True                       # 是否同步服务器；启用后会删除远端已不存在的本地文件（可选，默认 False）
     sync_ignore: \.(nfo|jpg)$               # 同步时忽略的文件正则表达式（可选，默认为空，仅对文件名及拓展名有效，对路径无效）
     smart_protection:                       # 智能保护，防止 Alist 故障导致的大量删除（可选）
       enabled: True                         # 启用保护（默认：False）
