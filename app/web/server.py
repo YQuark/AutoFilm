@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import secrets
 import time
 from collections import defaultdict
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -17,8 +16,6 @@ from app.web.config_api import (
     ConfigPayload,
     SettingsPayload,
     config_summary,
-    has_write_token,
-    is_authorized,
     list_backups,
     read_config_text,
     restore_backup,
@@ -101,25 +98,6 @@ class _RateLimiter(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def _authorize(authorization: str | None = Header(default=None)) -> None:
-    token = settings.WebToken
-    if not token:
-        return
-    expected = f"Bearer {token}"
-    if not authorization or not secrets.compare_digest(authorization.encode(), expected.encode()):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未授权")
-
-
-def _require_write_token(authorization: str | None = Header(default=None)) -> None:
-    if not has_write_token():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="写入配置前必须先设置 Web 令牌",
-        )
-    if not is_authorized(authorization):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未授权")
-
-
 def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
     app.add_middleware(_RateLimiter)
@@ -132,10 +110,7 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
     async def list_tasks() -> list[dict]:
         return registry.list_tasks(scheduler)
 
-    @app.post(
-        "/api/tasks/{module_name}/{task_id}/run",
-        dependencies=[Depends(_authorize)],
-    )
+    @app.post("/api/tasks/{module_name}/{task_id}/run")
     async def run_task(module_name: str, task_id: str) -> dict:
         definition = registry.get(module_name, task_id)
         if definition is None:
@@ -164,16 +139,10 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
         return config_summary()
 
     @app.get("/api/config/raw")
-    async def get_config_raw(
-        reveal: bool = False,
-        authorization: str | None = Header(default=None),
-    ) -> dict:
-        if reveal and not is_authorized(authorization):
-            raise HTTPException(status_code=401, detail="未授权")
+    async def get_config_raw() -> dict:
         return {
-            "content": read_config_text(reveal=reveal),
-            "redacted": not reveal,
-            "write_enabled": has_write_token(),
+            "content": read_config_text(reveal=True),
+            "redacted": False,
         }
 
     @app.post("/api/config/validate")
@@ -184,14 +153,14 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(e)) from e
         return {"ok": True, "sections": list(data.keys())}
 
-    @app.put("/api/config/raw", dependencies=[Depends(_require_write_token)])
+    @app.put("/api/config/raw")
     async def put_config_raw(payload: ConfigPayload) -> dict:
         try:
             return save_config(payload.content)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-    @app.put("/api/config/settings", dependencies=[Depends(_require_write_token)])
+    @app.put("/api/config/settings")
     async def put_config_settings(payload: SettingsPayload) -> dict:
         try:
             return update_settings(payload)
@@ -202,20 +171,14 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
     async def get_config_backups() -> list[dict]:
         return list_backups()
 
-    @app.post(
-        "/api/config/backup/{name}/restore",
-        dependencies=[Depends(_require_write_token)],
-    )
+    @app.post("/api/config/backup/{name}/restore")
     async def post_restore_backup(name: str) -> dict:
         try:
             return restore_backup(name)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
 
-    @app.delete(
-        "/api/config/backup/{name}",
-        dependencies=[Depends(_require_write_token)],
-    )
+    @app.delete("/api/config/backup/{name}")
     async def delete_config_backup(name: str) -> dict:
         try:
             delete_backup(name)

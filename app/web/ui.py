@@ -394,9 +394,6 @@ HTML = """<!doctype html>
               <label>Web 端口
                 <input id="cfg-web-port" type="number" min="1" max="65535" placeholder="8000">
               </label>
-              <label>Web 令牌
-                <input id="cfg-web-token" type="password" placeholder="留空表示不修改">
-              </label>
               <label>热重载
                 <select id="cfg-hot-reload">
                   <option value="true">是</option>
@@ -421,7 +418,7 @@ HTML = """<!doctype html>
               <button id="validate-config" type="button">校验</button>
               <button id="save-config" class="primary" type="button">保存 <kbd class="shortcut-hint">Ctrl+S</kbd></button>
             </div>
-            <div id="config-notice" class="notice">写入配置需要 Web 令牌。<a href="#" id="go-settings" style="margin-left:8px">前往设置</a></div>
+            <div id="config-notice" class="notice">保存时会自动备份并原子替换 config.yaml。</div>
             <div class="highlight-wrap">
               <textarea id="config-editor" spellcheck="false" aria-label="config.yaml 编辑器"></textarea>
               <pre class="hl-backdrop" id="hl-backdrop" aria-hidden="true"></pre>
@@ -478,14 +475,6 @@ HTML = """<!doctype html>
               </select>
             </label>
           </div>
-          <h2 style="margin-top:22px">Web 令牌</h2>
-          <label>当前令牌
-            <div style="display:flex; gap:8px; align-items:center">
-              <input id="settings-token" type="password" placeholder="输入新的 Web 令牌" style="flex:1">
-              <button id="save-token-from-settings" class="primary" type="button">更新</button>
-            </div>
-            <span id="token-status" class="muted" style="font-size:12px">状态：未设置</span>
-          </label>
           <div class="muted" style="margin-top:18px; font-size:13px">
             快捷键：<kbd>Ctrl+R</kbd> 刷新 · <kbd>Ctrl+S</kbd> 保存配置 · <kbd>1-5</kbd> 切换页面
           </div>
@@ -496,18 +485,6 @@ HTML = """<!doctype html>
   <script>
     const state = { tasks: [], summary: null, backups: [], editorDirty: false, currentPage: "dashboard", sortField: null, sortDir: "asc", historyKey: null };
     const $ = (id) => document.getElementById(id);
-    function getToken() {
-      const hash = location.hash;
-      if (hash.startsWith("#token=")) {
-        const t = hash.slice(7);
-        sessionStorage.setItem("autofilm_token", t);
-        history.replaceState(null, "", location.pathname + location.search);
-        return t;
-      }
-      return sessionStorage.getItem("autofilm_token") || "";
-    }
-    const token = () => getToken();
-    const authHeaders = () => token() ? { Authorization: `Bearer ${token()}` } : {};
     function setText(id, text) { if ($(id)) $(id).textContent = text; }
     function fmt(value) { return value || ""; }
     function escapeHtml(value) {
@@ -697,7 +674,7 @@ HTML = """<!doctype html>
     async function runTask(moduleName, taskId, btn) {
       if (btn) { btn.disabled = true; btn.textContent = "运行中…"; }
       try {
-        await api(`/api/tasks/${encodeURIComponent(moduleName)}/${encodeURIComponent(taskId)}/run`, { method: "POST", headers: authHeaders() });
+        await api(`/api/tasks/${encodeURIComponent(moduleName)}/${encodeURIComponent(taskId)}/run`, { method: "POST", headers: {} });
         toast(`${moduleName}:${taskId} 执行成功`, "success");
         await loadTasks();
       } catch (error) {
@@ -735,20 +712,17 @@ HTML = """<!doctype html>
     }
     // Config
     async function loadConfig() {
-      const reveal = token() ? "?reveal=true" : "";
       let raw;
       try {
-        raw = await api(`/api/config/raw${reveal}`, { headers: authHeaders() });
-      } catch (error) {
         raw = await api("/api/config/raw");
+      } catch (error) {
+        raw = { content: "", redacted: false };
       }
       if (!state.editorDirty) {
         $("config-editor").value = raw.content || "";
         highlightYAML();
       }
-      $("config-notice").innerHTML = raw.write_enabled
-        ? "令牌已生效。保存时会自动备份并原子替换 config.yaml。"
-        : '写入配置需要 Web 令牌。<a href="#" id="go-settings" style="margin-left:8px">前往设置</a>';
+      $("config-notice").innerHTML = "保存时会自动备份并原子替换 config.yaml。";
       if (state.editorDirty) {
         $("config-notice").classList.add("warn");
         $("discard-changes").classList.remove("hidden");
@@ -770,7 +744,6 @@ HTML = """<!doctype html>
         <div style="margin-top:10px">Alist2Strm: <strong>${counts.alist2strm || 0}</strong></div>
         <div>Ani2Alist: <strong>${counts.ani2alist || 0}</strong></div>
         <div>通知器：<strong>${counts.notifiers || 0}</strong></div>
-        <div>写入：<strong>${state.summary.write_enabled ? "已启用" : "只读"}</strong></div>
         <h3 style="margin-top:14px">Alist2Strm</h3>
         ${(state.summary.alist2strm || []).map((task) => `<div class="notice" style="margin-top:8px"><strong>${escapeHtml(task.id)}</strong><div class="muted">${escapeHtml(task.mode || "")} · ${escapeHtml(task.source_dir || "")} → ${escapeHtml(task.target_dir || "")}</div></div>`).join("") || '<div class="empty-state">暂无任务</div>'}`;
       if (!$("cfg-web-enabled").dataset.frozen) {
@@ -809,8 +782,8 @@ HTML = """<!doctype html>
     async function saveConfig() {
       const content = $("config-editor").value;
       let raw;
-      try { raw = await api(`/api/config/raw${token() ? "?reveal=true" : ""}`, { headers: authHeaders() }); }
-      catch (e) { raw = await api("/api/config/raw"); }
+      try { raw = await api("/api/config/raw"); }
+      catch (e) { raw = { content: "" }; }
       const oldLines = (raw.content || "").split("\\n");
       const newLines = content.split("\\n");
       const added = newLines.filter((l) => !oldLines.includes(l)).length;
@@ -837,7 +810,7 @@ HTML = """<!doctype html>
       try {
         const result = await api("/api/config/raw", {
           method: "PUT",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
+          headers: { "Content-Type": "application/json", ...{} },
           body: JSON.stringify({ content }),
         });
         state.editorDirty = false;
@@ -876,13 +849,11 @@ HTML = """<!doctype html>
           hot_reload: $("cfg-hot-reload").value === "true",
           hot_reload_interval: Number($("cfg-hot-reload-interval").value || 30),
         };
-        if ($("cfg-web-token").value) payload.web_token = $("cfg-web-token").value;
         const result = await api("/api/config/settings", {
           method: "PUT",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
+          headers: { "Content-Type": "application/json", ...{} },
           body: JSON.stringify(payload),
         });
-        $("cfg-web-token").value = "";
         toast(`常用设置已保存。备份：${result.backup || "无"}`, "success");
         state.editorDirty = false;
         await loadConfig();
@@ -895,7 +866,7 @@ HTML = """<!doctype html>
     async function restoreBackup(name) {
       if (!confirm(`确认恢复备份 ${name}？当前配置将被覆盖。`)) return;
       try {
-        await api(`/api/config/backup/${encodeURIComponent(name)}/restore`, { method: "POST", headers: authHeaders() });
+        await api(`/api/config/backup/${encodeURIComponent(name)}/restore`, { method: "POST", headers: {} });
         state.editorDirty = false;
         toast(`已恢复备份：${name}`, "success");
         await loadConfig();
@@ -906,7 +877,7 @@ HTML = """<!doctype html>
     async function deleteBackup(name) {
       if (!confirm(`确认删除备份 ${name}？此操作不可撤销。`)) return;
       try {
-        await api(`/api/config/backup/${encodeURIComponent(name)}`, { method: "DELETE", headers: authHeaders() });
+        await api(`/api/config/backup/${encodeURIComponent(name)}`, { method: "DELETE", headers: {} });
         toast(`已删除备份：${name}`, "success");
         await loadConfig();
       } catch (error) {
@@ -920,7 +891,7 @@ HTML = """<!doctype html>
       let ok = 0, err = 0;
       for (const task of toRun) {
         try {
-          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: authHeaders() });
+          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} });
           ok++;
         } catch (e) { err++; }
       }
@@ -933,7 +904,7 @@ HTML = """<!doctype html>
       let ok = 0, err = 0;
       for (const task of failed) {
         try {
-          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: authHeaders() });
+          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} });
           ok++;
         } catch (e) { err++; }
       }
@@ -997,15 +968,6 @@ HTML = """<!doctype html>
     // Event bindings
     document.querySelectorAll("nav button").forEach((btn) => btn.addEventListener("click", () => showPage(btn.dataset.page)));
     $("refresh").addEventListener("click", loadAll);
-    $("save-token-from-settings").addEventListener("click", () => {
-      const val = $("settings-token").value;
-      if (!val) { toast("请输入令牌", "warn"); return; }
-      sessionStorage.setItem("autofilm_token", val);
-      $("settings-token").value = "";
-      updateTokenStatus();
-      toast("令牌已更新", "success");
-      loadConfig();
-    });
     $("module-filter").addEventListener("change", renderTasks);
     $("task-search").addEventListener("input", renderTasks);
     $("view-mode").addEventListener("change", (event) => {
@@ -1043,23 +1005,10 @@ HTML = """<!doctype html>
     $("log-level").addEventListener("change", () => { if (state.currentPage === "logs") loadLogs(); });
     $("log-lines").addEventListener("change", () => { if (state.currentPage === "logs") loadLogs(); });
     $("log-search").addEventListener("input", () => { if (state.currentPage === "logs") loadLogs(); });
-    document.addEventListener("click", (e) => {
-      if (e.target.id === "go-settings" || e.target.closest("#go-settings")) {
-        e.preventDefault();
-        showPage("settings");
-      }
-    });
     $("diff-overlay").addEventListener("click", (e) => { if (e.target === $("diff-overlay")) $("diff-overlay").classList.remove("show"); });
-    function updateTokenStatus() {
-      const has = !!token();
-      setText("token-status", `状态：${has ? "已设置" : "未设置"}`);
-      $("settings-token").value = "";
-    }
     ["cfg-web-enabled", "cfg-web-host", "cfg-web-port", "cfg-hot-reload", "cfg-hot-reload-interval"].forEach((id) => {
       $(id).addEventListener("input", () => { $(id).dataset.frozen = "1"; });
     });
-    $("settings-token").value = token();
-    updateTokenStatus();
     applyPrefs();
     loadAll();
   </script>

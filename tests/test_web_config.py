@@ -21,14 +21,13 @@ class DummyTask:
 
 
 class TestWebConfigApi(unittest.TestCase):
-    def make_settings(self, temp_dir: str, token: str = "") -> SimpleNamespace:
+    def make_settings(self, temp_dir: str) -> SimpleNamespace:
         base = Path(temp_dir)
         config_dir = base / "config"
         config_dir.mkdir(exist_ok=True)
         return SimpleNamespace(
             CONFIG=config_dir / "config.yaml",
             CONFIG_DIR=config_dir,
-            WebToken=token,
             APP_NAME="AutoFilm",
             APP_VERSION="test",
         )
@@ -37,7 +36,7 @@ class TestWebConfigApi(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             fake_settings = self.make_settings(temp_dir)
             fake_settings.CONFIG.write_text(
-                "Settings:\n  web_token: secret\nAlist2StrmList:\n"
+                "Settings:\n  password: secret\nAlist2StrmList:\n"
                 "  - id: AV\n    password: pass\n    token: alist-token\n",
                 encoding="utf-8",
             )
@@ -46,13 +45,13 @@ class TestWebConfigApi(unittest.TestCase):
                 summary = config_api.config_summary()
                 raw = config_api.read_config_text(reveal=False)
 
-            self.assertEqual(summary["settings"]["web_token"], "***")
+            self.assertEqual(summary["settings"]["password"], "***")
             self.assertIn("token: '***'", raw)
             self.assertIn("password: '***'", raw)
 
     def test_save_config_creates_backup_and_replaces_content(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            fake_settings = self.make_settings(temp_dir, token="secret")
+            fake_settings = self.make_settings(temp_dir)
             fake_settings.CONFIG.write_text("Settings:\n  old: true\n", encoding="utf-8")
 
             with patch.object(config_api, "settings", fake_settings):
@@ -65,8 +64,8 @@ class TestWebConfigApi(unittest.TestCase):
 
 
 class TestWebConfigRoutes(unittest.TestCase):
-    def make_client(self, temp_dir: str, token: str = "") -> tuple[TestClient, SimpleNamespace]:
-        fake_settings = self.make_settings(temp_dir, token)
+    def make_client(self, temp_dir: str) -> tuple[TestClient, SimpleNamespace]:
+        fake_settings = self.make_settings(temp_dir)
         fake_settings.CONFIG.write_text("Settings:\n  web_enabled: true\n", encoding="utf-8")
         registry = TaskRegistry(TaskStateStore(Path(temp_dir) / "state"))
         registry.replace_module("Alist2Strm", DummyTask, [{"id": "AV"}])
@@ -76,49 +75,35 @@ class TestWebConfigRoutes(unittest.TestCase):
         self.addCleanup(patcher.stop)
         return TestClient(app), fake_settings
 
-    def make_settings(self, temp_dir: str, token: str = "") -> SimpleNamespace:
+    def make_settings(self, temp_dir: str) -> SimpleNamespace:
         base = Path(temp_dir)
         config_dir = base / "config"
         config_dir.mkdir(exist_ok=True)
         return SimpleNamespace(
             CONFIG=config_dir / "config.yaml",
             CONFIG_DIR=config_dir,
-            WebToken=token,
             APP_NAME="AutoFilm",
             APP_VERSION="test",
         )
 
-    def test_config_write_requires_token(self) -> None:
+    def test_config_write_without_token(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            client, _ = self.make_client(temp_dir, token="")
+            client, fake_settings = self.make_client(temp_dir)
 
             response = client.put(
                 "/api/config/raw",
-                json={"content": "Settings:\n  web_enabled: false\n"},
-            )
-
-            self.assertEqual(response.status_code, 403)
-
-    def test_config_write_accepts_valid_token(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            client, fake_settings = self.make_client(temp_dir, token="secret")
-
-            response = client.put(
-                "/api/config/raw",
-                headers={"Authorization": "Bearer secret"},
                 json={"content": "Settings:\n  web_enabled: false\n"},
             )
 
             self.assertEqual(response.status_code, 200)
             self.assertIn("web_enabled: false", fake_settings.CONFIG.read_text(encoding="utf-8"))
 
-    def test_settings_form_update_accepts_valid_token(self) -> None:
+    def test_settings_form_update(self) -> None:
         with TemporaryDirectory() as temp_dir:
-            client, fake_settings = self.make_client(temp_dir, token="secret")
+            client, fake_settings = self.make_client(temp_dir)
 
             response = client.put(
                 "/api/config/settings",
-                headers={"Authorization": "Bearer secret"},
                 json={
                     "web_enabled": True,
                     "web_host": "0.0.0.0",

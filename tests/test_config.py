@@ -78,7 +78,6 @@ class TestSettingManager(unittest.TestCase):
             self.assertTrue(settings.WebEnabled)
             self.assertEqual(settings.WebHost, "0.0.0.0")
             self.assertEqual(settings.WebPort, 65535)
-            self.assertEqual(settings.WebToken, "")
 
     def test_web_settings_can_use_environment_overrides(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -88,7 +87,6 @@ class TestSettingManager(unittest.TestCase):
                     "AUTOFILM_WEB_ENABLED": "true",
                     "AUTOFILM_WEB_HOST": "127.0.0.1",
                     "AUTOFILM_WEB_PORT": "9000",
-                    "AUTOFILM_WEB_TOKEN": "secret",
                 },
                 clear=False,
             ):
@@ -97,7 +95,6 @@ class TestSettingManager(unittest.TestCase):
                 self.assertTrue(settings.WebEnabled)
                 self.assertEqual(settings.WebHost, "127.0.0.1")
                 self.assertEqual(settings.WebPort, 9000)
-                self.assertEqual(settings.WebToken, "secret")
 
 
 if __name__ == "__main__":

@@ -215,15 +215,5 @@ class SettingManager:
             return min(65535, max(1, port))
         return 8000
 
-    @property
-    def WebToken(self) -> str:
-        env_value = getenv("AUTOFILM_WEB_TOKEN")
-        if env_value is not None:
-            return env_value
-        section = self.__get_section("Settings", {})
-        if isinstance(section, dict):
-            return str(section.get("web_token", "") or "")
-        return ""
-
 
 settings = SettingManager()

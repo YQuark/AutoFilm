@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -23,7 +22,6 @@ SECRET_KEYS = {
     "token",
     "bot_token",
     "chat_id",
-    "web_token",
 }
 
 
@@ -37,19 +35,6 @@ class SettingsPayload(BaseModel):
     web_enabled: bool | None = None
     web_host: str | None = None
     web_port: int | None = None
-    web_token: str | None = None
-
-
-def has_write_token() -> bool:
-    return bool(settings.WebToken)
-
-
-def is_authorized(authorization: str | None) -> bool:
-    token = settings.WebToken
-    if not token or not authorization:
-        return False
-    expected = f"Bearer {token}"
-    return secrets.compare_digest(authorization.encode(), expected.encode())
 
 
 def read_config_text(reveal: bool = False) -> str:
@@ -102,7 +87,6 @@ def config_summary() -> dict[str, Any]:
     return {
         "path": str(settings.CONFIG),
         "exists": settings.CONFIG.exists(),
-        "write_enabled": has_write_token(),
         "settings": redact(config_settings if isinstance(config_settings, dict) else {}),
         "counts": {
             "alist2strm": len(alist_tasks) if isinstance(alist_tasks, list) else 0,
