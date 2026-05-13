@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from app.modules.alist2strm.alist2strm import Alist2Strm
+from app.modules.alist2strm.manifest import ScanManifest
 from app.modules.alist2strm.strm_protection import StrmProtectionManager
 
 
@@ -56,6 +57,39 @@ class TestStrmProtectionManager(unittest.TestCase):
 
             self.assertEqual(first, set())
             self.assertEqual(second, {file_path})
+
+
+class TestScanManifest(unittest.TestCase):
+    def test_directory_entries_are_change_checked(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            manifest = ScanManifest(Path(temp_dir), "task")
+
+            manifest.mark_directory("/media/anime", 100.0, 0)
+
+            self.assertFalse(
+                manifest.is_changed(manifest.dir_key("/media/anime"), 100.0, 0)
+            )
+            self.assertTrue(
+                manifest.is_changed(manifest.dir_key("/media/anime"), 101.0, 0)
+            )
+
+    def test_prune_stale_preserves_skipped_directory_subtree(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            manifest = ScanManifest(Path(temp_dir), "task")
+            manifest.mark_directory("/media/anime", 100.0, 0)
+            manifest.mark_processed("/media/anime/a.mp4", 100.0, 10)
+            manifest.mark_processed("bdmv:/media/anime/movie", 100.0, 20)
+            manifest.mark_processed("/media/movie/b.mp4", 100.0, 30)
+
+            manifest.prune_stale(
+                {manifest.dir_key("/media/anime")}, preserved_prefixes={"/media/anime"}
+            )
+
+            self.assertFalse(manifest.is_changed("/media/anime/a.mp4", 100.0, 10))
+            self.assertFalse(
+                manifest.is_changed("bdmv:/media/anime/movie", 100.0, 20)
+            )
+            self.assertTrue(manifest.is_changed("/media/movie/b.mp4", 100.0, 30))
 
 
 if __name__ == "__main__":

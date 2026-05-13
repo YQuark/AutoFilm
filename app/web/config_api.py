@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-from yaml import YAMLError, safe_dump, safe_load
+from pydantic import BaseModel, Field
+from ruamel.yaml import YAML
+from yaml import YAMLError, safe_load
 
 from app.core import settings
+
+_ryml = YAML()
+_ryml.preserve_quotes = True
+_ryml.width = 4096
 
 SECRET_KEYS = {
     "password",
@@ -21,7 +28,7 @@ SECRET_KEYS = {
 
 
 class ConfigPayload(BaseModel):
-    content: str
+    content: str = Field(max_length=512_000)
 
 
 class SettingsPayload(BaseModel):
@@ -39,7 +46,10 @@ def has_write_token() -> bool:
 
 def is_authorized(authorization: str | None) -> bool:
     token = settings.WebToken
-    return bool(token) and authorization == f"Bearer {token}"
+    if not token or not authorization:
+        return False
+    expected = f"Bearer {token}"
+    return secrets.compare_digest(authorization.encode(), expected.encode())
 
 
 def read_config_text(reveal: bool = False) -> str:
@@ -63,7 +73,9 @@ def load_yaml(content: str) -> dict[str, Any]:
 
 
 def dump_yaml(data: dict[str, Any]) -> str:
-    return safe_dump(data, allow_unicode=True, sort_keys=False)
+    buf = StringIO()
+    _ryml.dump(data, buf)
+    return buf.getvalue()
 
 
 def redact(value: Any) -> Any:
@@ -119,6 +131,7 @@ def summarize_tasks(tasks: Any) -> list[dict[str, Any]]:
                 "target_dir": item.get("target_dir"),
                 "sync_server": item.get("sync_server"),
                 "incremental": item.get("incremental"),
+                "incremental_level": item.get("incremental_level"),
                 "max_workers": item.get("max_workers"),
                 "scan_concurrency": item.get("scan_concurrency"),
             }
@@ -153,7 +166,19 @@ def create_backup() -> Path | None:
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_file = backup_dir() / f"config-{timestamp}.yaml"
     backup_file.write_text(settings.CONFIG.read_text(encoding="utf-8"), encoding="utf-8")
+    _rotate_backups()
     return backup_file
+
+
+def _rotate_backups(keep: int = 50) -> None:
+    backups = sorted(backup_dir().glob("config-*.yaml"))
+    if len(backups) <= keep:
+        return
+    for path in backups[:-keep]:
+        try:
+            path.unlink()
+        except OSError:
+            pass
 
 
 def list_backups() -> list[dict[str, Any]]:
@@ -186,8 +211,13 @@ def save_config(content: str) -> dict[str, Any]:
 
 
 def update_settings(payload: SettingsPayload) -> dict[str, Any]:
-    content = settings.CONFIG.read_text(encoding="utf-8") if settings.CONFIG.exists() else ""
-    data = load_yaml(content) if content else {}
+    if settings.CONFIG.exists():
+        with settings.CONFIG.open("r", encoding="utf-8") as f:
+            data = _ryml.load(f) or {}
+    else:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
     config_settings = data.get("Settings")
     if not isinstance(config_settings, dict):
         config_settings = {}
@@ -209,3 +239,15 @@ def restore_backup(name: str) -> dict[str, Any]:
         raise ValueError("备份不存在")
     content = resolved_source.read_text(encoding="utf-8")
     return save_config(content)
+
+
+def delete_backup(name: str) -> None:
+    source = backup_dir() / name
+    try:
+        resolved_source = source.resolve()
+        resolved_backup_dir = backup_dir().resolve()
+    except OSError as e:
+        raise ValueError(f"备份路径无效：{e}") from e
+    if resolved_source.parent != resolved_backup_dir or not resolved_source.exists():
+        raise ValueError("备份不存在")
+    resolved_source.unlink()

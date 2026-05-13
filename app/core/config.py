@@ -22,6 +22,8 @@ class SettingManager:
         """
         初始化 SettingManager 对象
         """
+        self.__config_cache: dict[str, Any] | None = None
+        self.__config_cache_mtime: float = 0
         self.__mkdir()
         self.__load_mode()
 
@@ -47,9 +49,20 @@ class SettingManager:
     def __load_config(self) -> dict[str, Any]:
         """
         加载配置文件。缺失或空配置按空配置处理，格式错误明确报错。
+        基于文件 mtime 缓存解析结果，避免每次属性访问重复 I/O 和 YAML 解析。
         """
         if not self.CONFIG.exists():
+            self.__config_cache = None
+            self.__config_cache_mtime = 0
             return {}
+
+        try:
+            current_mtime = self.CONFIG.stat().st_mtime
+        except OSError:
+            current_mtime = 0
+
+        if self.__config_cache is not None and current_mtime <= self.__config_cache_mtime:
+            return self.__config_cache
 
         try:
             with self.CONFIG.open(mode="r", encoding="utf-8") as file:
@@ -59,6 +72,9 @@ class SettingManager:
 
         if not isinstance(data, dict):
             raise RuntimeError(f"配置文件 {self.CONFIG} 顶层必须是 YAML 映射")
+
+        self.__config_cache = data
+        self.__config_cache_mtime = current_mtime
         return data
 
     def __get_section(self, name: str, default: Any) -> Any:

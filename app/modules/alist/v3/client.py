@@ -52,7 +52,7 @@ class AlistClient(metaclass=Multiton):
             self.__token["expires"] = -1
         elif username != "" and password != "":
             self.__username = str(username)
-            self.___password = str(password)  # 三个下划线：name mangling 后与 __password property 一致
+            self._password = str(password)
             # 同步登录获取初始 token
             self.__token["token"] = self.api_auth_login()
             now_stamp = int(time())
@@ -113,12 +113,12 @@ class AlistClient(metaclass=Multiton):
         return self.__username
 
     @property
-    def __password(self) -> str:
+    def password(self) -> str:
         """
         获取密码
         """
 
-        return self.___password
+        return self._password
 
     async def _get_token(self) -> str:
         """
@@ -153,7 +153,7 @@ class AlistClient(metaclass=Multiton):
         :return: 登录令牌 token
         """
 
-        json = {"username": self.username, "password": self.__password}
+        json = {"username": self.username, "password": self.password}
         resp = self.__client.post(self.url + "/api/auth/login", json=json, sync=True)
         if resp is None:
             raise RuntimeError("更新令牌请求无响应")
@@ -175,7 +175,7 @@ class AlistClient(metaclass=Multiton):
         :return: 登录令牌 token
         """
 
-        json = {"username": self.username, "password": self.__password}
+        json = {"username": self.username, "password": self.password}
         resp = await self.__client.post(self.url + "/api/auth/login", json=json, sync=False)
         if resp is None:
             raise RuntimeError("更新令牌请求无响应")
@@ -398,6 +398,8 @@ class AlistClient(metaclass=Multiton):
         wait_time: float | int,
         is_detail: bool = True,
         filter: Callable[[AlistPath], bool] = lambda x: True,
+        dir_filter: Callable[[AlistPath], bool] | None = None,
+        on_directory_scanned: Callable[[str, list[AlistPath]], None] | None = None,
         concurrency: int = 3,
     ) -> AsyncGenerator[AlistPath, None]:
         """
@@ -409,6 +411,8 @@ class AlistClient(metaclass=Multiton):
         :param wait_time: 每轮遍历等待时间（单位秒）
         :param is_detail: 是否获取详细信息（raw_url）
         :param filter: 匿名函数过滤器（默认不启用）
+        :param dir_filter: 目录过滤器，返回 False 时不递归进入该目录
+        :param on_directory_scanned: 目录扫描完成后的回调
         :param concurrency: Alist API 扫描并发数，默认 3
         :return: AlistPath 对象生成器
         """
@@ -432,9 +436,13 @@ class AlistClient(metaclass=Multiton):
                     await _wait_before_request()
                     items = await self.async_api_fs_list(current_dir)
                     logger.debug(f"扫描目录 {current_dir}：{len(items)} 个项目")
+                    if on_directory_scanned is not None:
+                        on_directory_scanned(current_dir, items)
 
                     for path in items:
                         if path.is_dir:
+                            if dir_filter is not None and not dir_filter(path):
+                                continue
                             await dir_queue.put(path.full_path)
                             continue
 
@@ -447,7 +455,7 @@ class AlistClient(metaclass=Multiton):
                         await result_queue.put(path)
                 except Exception as e:
                     await result_queue.put(e)
-                    return
+                    # 不 return：保持 worker 存活，由主循环处理异常后统一清理
                 finally:
                     dir_queue.task_done()
 

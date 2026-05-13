@@ -38,6 +38,7 @@ class Alist2Strm:
         sync_ignore: str | None = None,
         smart_protection: dict | None = None,
         incremental: bool = True,
+        incremental_level: str = "file",
         **_,
     ) -> None:
         """
@@ -64,6 +65,7 @@ class Alist2Strm:
         :param wait_time: 遍历请求间隔时间，单位为秒，默认为 0
         :param sync_ignore: 同步时忽略的文件正则表达式
         :param smart_protection: 智能保护配置 {enabled: bool, threshold: int, grace_scans: int}
+        :param incremental_level: 增量级别，file 仅跳过文件处理，directory 可跳过未变更目录
         """
 
         self.task_id = id
@@ -120,6 +122,12 @@ class Alist2Strm:
             self.strm_protection = None
 
         self.incremental = incremental
+        self.incremental_level = str(incremental_level or "file").strip().lower()
+        if self.incremental_level not in {"file", "directory"}:
+            logger.warning(
+                f"未知 incremental_level={incremental_level}，已回退为 file"
+            )
+            self.incremental_level = "file"
 
     async def run(self) -> None:
         """
@@ -136,10 +144,51 @@ class Alist2Strm:
             self.__manifest = ScanManifest(self.target_dir, self.task_id)
             self.__manifest.load()
             self.__manifest_keys: set[str] = set()
-            logger.info(f"增量扫描已启用，清单现有 {self.__manifest.entry_count} 个条目")
+            logger.info(
+                f"增量扫描已启用，级别={self.incremental_level}，清单现有 "
+                f"{self.__manifest.entry_count} 个条目"
+            )
         else:
             self.__manifest = None
             self.__manifest_keys = set()
+        self.__skipped_dir_prefixes: set[str] = set()
+        self.__scanned_dir_count = 0
+        self.__skipped_dir_count = 0
+        self.__discovered_file_count = 0
+        self.__processed_file_count = 0
+
+        def on_directory_scanned(_dir_path: str, items: list[AlistPath]) -> None:
+            self.__scanned_dir_count += 1
+            self.__discovered_file_count += sum(1 for item in items if not item.is_dir)
+
+        def should_enter_dir(path: AlistPath) -> bool:
+            if (
+                self.__manifest is None
+                or self.incremental_level != "directory"
+                or self.overwrite
+            ):
+                return True
+
+            dir_key = self.__manifest.dir_key(path.full_path)
+            self.__manifest_keys.add(dir_key)
+            try:
+                if self.__manifest.is_changed(
+                    dir_key, path.modified_timestamp, path.size
+                ):
+                    self.__manifest.mark_directory(
+                        path.full_path, path.modified_timestamp, path.size
+                    )
+                    return True
+            except ValueError as e:
+                logger.warning(
+                    f"目录 {path.full_path} 修改时间解析失败，改为递归扫描：{e}"
+                )
+                return True
+
+            self.__skipped_dir_count += 1
+            self.__skipped_dir_prefixes.add(path.full_path)
+            logger.debug(f"目录 {path.full_path} 未变更，跳过子树扫描")
+            return False
 
         def filter(path: AlistPath) -> bool:
             """
@@ -153,8 +202,8 @@ class Alist2Strm:
             if path.is_dir:
                 return False
 
-            # 跳过系统文件夹和不需要的文件
-            if any(folder in path.full_path for folder in ["@eaDir", "Thumbs.db", ".DS_Store"]):
+            # 跳过系统文件夹和不需要的文件（按路径组件匹配，避免子串误伤）
+            if path.name in ("Thumbs.db", ".DS_Store") or "@eaDir" in path.full_path.split("/"):
                 return False
 
             # 完全跳过 BDMV 文件夹内的所有文件（除了我们特殊处理的 .m2ts 文件）
@@ -236,7 +285,7 @@ class Alist2Strm:
         self.processed_local_paths = set()  # 云盘文件对应的本地文件路径
 
         # 第一阶段：收集所有文件信息并直接处理普通文件
-        scan_count = 0
+        process_count = 0
         async def process_with_limit(path: AlistPath) -> None:
             async with self.__max_workers:
                 await self.__file_processer(path)
@@ -247,14 +296,21 @@ class Alist2Strm:
                 wait_time=self.wait_time,
                 is_detail=is_detail,
                 filter=filter,
+                dir_filter=should_enter_dir,
+                on_directory_scanned=on_directory_scanned,
                 concurrency=self.scan_concurrency,
             ):
-                scan_count += 1
-                if scan_count % 100 == 0:
-                    logger.info(f"遍历进度：已发现 {scan_count} 个待处理文件 ...")
+                process_count += 1
+                if process_count % 100 == 0:
+                    logger.info(f"处理进度：已发现 {process_count} 个待处理文件 ...")
                 # 直接处理普通文件，不需要额外的 list
                 tg.create_task(process_with_limit(path))
-        logger.info(f"遍历完成：共发现 {scan_count} 个待处理文件")
+        logger.info(
+            f"遍历完成：扫描目录 {self.__scanned_dir_count} 个，"
+            f"跳过目录 {self.__skipped_dir_count} 个，"
+            f"发现文件 {self.__discovered_file_count} 个，"
+            f"待处理文件 {process_count} 个"
+        )
 
         # 完成 BDMV 文件收集，确定最大文件
         self._finalize_bdmv_collections()
@@ -314,12 +370,21 @@ class Alist2Strm:
                 logger.error(f"详细错误信息: {traceback.format_exc()}")
                 continue
 
-        if self.sync_server:
+        logger.info(f"文件处理完成：实际处理 {self.__processed_file_count} 个文件")
+
+        if self.sync_server and self.__skipped_dir_prefixes:
+            logger.warning(
+                f"本轮目录级增量跳过了 {len(self.__skipped_dir_prefixes)} 个目录，"
+                "已跳过本地删除清理，避免误删未遍历子树"
+            )
+        elif self.sync_server:
             await self.__cleanup_local_files()
             logger.info("清理过期的 .strm 文件完成")
 
         if self.__manifest is not None:
-            self.__manifest.prune_stale(self.__manifest_keys)
+            self.__manifest.prune_stale(
+                self.__manifest_keys, self.__skipped_dir_prefixes
+            )
             self.__manifest.save()
             logger.info(f"扫描清单已更新: {self.__manifest.entry_count} 个条目")
 
@@ -367,6 +432,7 @@ class Alist2Strm:
             self.__manifest.mark_processed(
                 path.full_path, path.modified_timestamp, path.size
             )
+        self.__processed_file_count += 1
 
     def __get_local_path(self, path: AlistPath) -> Path:
         """

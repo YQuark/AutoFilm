@@ -397,6 +397,69 @@ class TestAlistClientIterPath(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(peak_requests, 2)
         self.assertTrue(all(path.raw_url for path in found))
 
+    async def test_iter_path_skips_filtered_directories(self) -> None:
+        tree = {
+            "/": [
+                self.make_path("/A", True),
+                self.make_path("/B", True),
+            ],
+            "/B": [self.make_path("/B/b.mp4", False)],
+        }
+        listed_dirs = []
+        scanned_dirs = []
+
+        async def async_api_fs_list(dir_path: str) -> list[AlistPath]:
+            listed_dirs.append(dir_path)
+            return tree[dir_path]
+
+        client = SimpleNamespace(
+            async_api_fs_list=async_api_fs_list,
+            async_api_fs_get=lambda path: None,
+        )
+
+        found = []
+        async for alist_path in AlistClient.iter_path(
+            client,
+            dir_path="/",
+            wait_time=0,
+            is_detail=False,
+            dir_filter=lambda path: path.full_path != "/A",
+            on_directory_scanned=lambda dir_path, _items: scanned_dirs.append(dir_path),
+            concurrency=1,
+        ):
+            found.append(alist_path)
+
+        self.assertEqual(listed_dirs, ["/", "/B"])
+        self.assertEqual(scanned_dirs, ["/", "/B"])
+        self.assertEqual({path.full_path for path in found}, {"/B/b.mp4"})
+
+    async def test_iter_path_enters_changed_directories(self) -> None:
+        tree = {
+            "/": [self.make_path("/A", True)],
+            "/A": [self.make_path("/A/a.mp4", False)],
+        }
+
+        async def async_api_fs_list(dir_path: str) -> list[AlistPath]:
+            return tree[dir_path]
+
+        client = SimpleNamespace(
+            async_api_fs_list=async_api_fs_list,
+            async_api_fs_get=lambda path: None,
+        )
+
+        found = []
+        async for alist_path in AlistClient.iter_path(
+            client,
+            dir_path="/",
+            wait_time=0,
+            is_detail=False,
+            dir_filter=lambda _path: True,
+            concurrency=1,
+        ):
+            found.append(alist_path)
+
+        self.assertEqual({path.full_path for path in found}, {"/A/a.mp4"})
+
 
 if __name__ == "__main__":
     unittest.main()

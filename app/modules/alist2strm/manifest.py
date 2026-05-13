@@ -1,4 +1,4 @@
-"""扫描清单：支持增量扫描，跳过未变更的文件"""
+"""扫描清单：支持增量扫描，跳过未变更的文件或目录"""
 
 import json
 from datetime import datetime
@@ -14,8 +14,12 @@ class ScanManifest:
     Key 格式：
       - 普通文件：Alist full_path（用户根相对路径）
       - BDMV 目录： "bdmv:" + BDMV 根目录 full_path
+      - 目录： "dir:" + Alist full_path
     Value：{"mtime": float, "size": int, "processed_at": ISO字符串}
     """
+
+    DIR_PREFIX = "dir:"
+    BDMV_PREFIX = "bdmv:"
 
     def __init__(self, target_dir: Path, task_id: str) -> None:
         safe_id = re_sub(r"[^\w\-]", "_", str(task_id))
@@ -86,9 +90,42 @@ class ScanManifest:
             "processed_at": datetime.now().isoformat(),
         }
 
-    def prune_stale(self, known_keys: set[str]) -> None:
+    def mark_directory(
+        self, full_path: str, remote_mtime: float, remote_size: int
+    ) -> None:
+        """记录目录状态，用于目录级增量跳过。"""
+        self.mark_processed(self.dir_key(full_path), remote_mtime, remote_size)
+
+    @classmethod
+    def dir_key(cls, full_path: str) -> str:
+        """返回目录条目的 manifest key。"""
+        return f"{cls.DIR_PREFIX}{full_path.rstrip('/') or '/'}"
+
+    @staticmethod
+    def _is_under_prefix(key: str, prefix: str) -> bool:
+        normalized = prefix.rstrip("/")
+        if not normalized:
+            return False
+        child_prefix = normalized + "/"
+
+        if key.startswith(ScanManifest.DIR_PREFIX):
+            remote_key = key[len(ScanManifest.DIR_PREFIX):]
+            return remote_key == normalized or remote_key.startswith(child_prefix)
+        if key.startswith(ScanManifest.BDMV_PREFIX):
+            remote_key = key[len(ScanManifest.BDMV_PREFIX):]
+            return remote_key == normalized or remote_key.startswith(child_prefix)
+        return key == normalized or key.startswith(child_prefix)
+
+    def prune_stale(
+        self, known_keys: set[str], preserved_prefixes: set[str] | None = None
+    ) -> None:
         """移除远程已不存在的文件条目。"""
-        stale = set(self._entries) - known_keys
+        preserved_prefixes = preserved_prefixes or set()
+        stale = {
+            key
+            for key in set(self._entries) - known_keys
+            if not any(self._is_under_prefix(key, prefix) for prefix in preserved_prefixes)
+        }
         for key in stale:
             del self._entries[key]
         if stale:
