@@ -82,7 +82,6 @@ def config_summary() -> dict[str, Any]:
     data = load_yaml(content) if content else {}
     config_settings = data.get("Settings", {})
     alist_tasks = data.get("Alist2StrmList", [])
-    ani_tasks = data.get("Ani2AlistList", [])
     notifiers = data.get("NotifierList", [])
     return {
         "path": str(settings.CONFIG),
@@ -90,11 +89,9 @@ def config_summary() -> dict[str, Any]:
         "settings": redact(config_settings if isinstance(config_settings, dict) else {}),
         "counts": {
             "alist2strm": len(alist_tasks) if isinstance(alist_tasks, list) else 0,
-            "ani2alist": len(ani_tasks) if isinstance(ani_tasks, list) else 0,
             "notifiers": len(notifiers) if isinstance(notifiers, list) else 0,
         },
         "alist2strm": summarize_tasks(alist_tasks),
-        "ani2alist": summarize_tasks(ani_tasks),
         "notifiers": summarize_notifiers(notifiers),
     }
 

@@ -742,7 +742,6 @@ HTML = """<!doctype html>
       $("config-summary").innerHTML = `
         <div class="muted">路径：${escapeHtml(state.summary.path)}</div>
         <div style="margin-top:10px">Alist2Strm: <strong>${counts.alist2strm || 0}</strong></div>
-        <div>Ani2Alist: <strong>${counts.ani2alist || 0}</strong></div>
         <div>通知器：<strong>${counts.notifiers || 0}</strong></div>
         <h3 style="margin-top:14px">Alist2Strm</h3>
         ${(state.summary.alist2strm || []).map((task) => `<div class="notice" style="margin-top:8px"><strong>${escapeHtml(task.id)}</strong><div class="muted">${escapeHtml(task.mode || "")} · ${escapeHtml(task.source_dir || "")} → ${escapeHtml(task.target_dir || "")}</div></div>`).join("") || '<div class="empty-state">暂无任务</div>'}`;

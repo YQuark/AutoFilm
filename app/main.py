@@ -21,7 +21,7 @@ from app.core.tasks import (
     get_task_id,
 )
 from app.extensions import LOGO
-from app.modules import Alist2Strm, Ani2Alist
+from app.modules import Alist2Strm
 
 
 class _MaxInstancesFilter(logging.Filter):
@@ -154,7 +154,6 @@ async def _hot_reload_watcher(
     scheduler: AsyncIOScheduler,
     registry: TaskRegistry,
     alist_configs: list[dict[str, Any]],
-    ani_configs: list[dict[str, Any]],
     interval: int,
 ) -> None:
     """后台协程：监控 config.yaml 文件变更并重建 scheduler job"""
@@ -179,13 +178,9 @@ async def _hot_reload_watcher(
 
         try:
             new_alist = settings.AlistServerList
-            new_ani = settings.Ani2AlistList
 
             alist_configs[:] = _reconcile_module(
                 scheduler, registry, "Alist2Strm", Alist2Strm, alist_configs, new_alist
-            )
-            ani_configs[:] = _reconcile_module(
-                scheduler, registry, "Ani2Alist", Ani2Alist, ani_configs, new_ani
             )
         except Exception as e:
             logger.error(f"[热重载] 重载失败: {e}")
@@ -223,12 +218,6 @@ async def main() -> None:
                 task_id = get_task_id(server)
                 logger.info(f"手动执行 Alist2Strm 任务：{task_id}")
                 await run_config_task(registry, "Alist2Strm", server, Alist2Strm)
-        for server in settings.Ani2AlistList:
-            if args.run_all or server.get("id") == target:
-                matched = True
-                task_id = get_task_id(server)
-                logger.info(f"手动执行 Ani2Alist 任务：{task_id}")
-                await run_config_task(registry, "Ani2Alist", server, Ani2Alist)
         if args.run and not matched:
             logger.warning(f"未找到 ID 为 {target} 的任务")
         logger.info("手动执行完成")
@@ -241,7 +230,6 @@ async def main() -> None:
     scheduler = AsyncIOScheduler()
 
     alist_configs: list[dict[str, Any]] = list(settings.AlistServerList)
-    ani_configs: list[dict[str, Any]] = list(settings.Ani2AlistList)
 
     if alist_configs:
         logger.info("检测到 Alist2Strm 模块配置，正在添加至后台任务")
@@ -249,13 +237,6 @@ async def main() -> None:
         add_scheduled_jobs(scheduler, registry, definitions)
     else:
         logger.warning("未检测到 Alist2Strm 模块配置")
-
-    if ani_configs:
-        logger.info("检测到 Ani2Alist 模块配置，正在添加至后台任务")
-        definitions = registry.replace_module("Ani2Alist", Ani2Alist, ani_configs)
-        add_scheduled_jobs(scheduler, registry, definitions)
-    else:
-        logger.warning("未检测到 Ani2Alist 模块配置")
 
     logging.getLogger("apscheduler.scheduler").addFilter(_MaxInstancesFilter())
     scheduler.start()
@@ -268,7 +249,6 @@ async def main() -> None:
                 scheduler,
                 registry,
                 alist_configs,
-                ani_configs,
                 settings.HotReloadInterval,
             )
         )

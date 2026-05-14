@@ -22,18 +22,15 @@ class DummyTask:
 
 
 class TestTaskRegistry(unittest.IsolatedAsyncioTestCase):
-    async def test_module_names_disambiguate_scheduler_job_ids(self) -> None:
+    async def test_scheduled_job_uses_module_scoped_id(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry = TaskRegistry(TaskStateStore(Path(temp_dir)))
             scheduler = AsyncIOScheduler()
             alist_defs = registry.replace_module("Alist2Strm", DummyTask, [{"id": "AV", "cron": "0 0 * * *"}])
-            ani_defs = registry.replace_module("Ani2Alist", DummyTask, [{"id": "AV", "cron": "0 1 * * *"}])
 
             add_scheduled_jobs(scheduler, registry, alist_defs)
-            add_scheduled_jobs(scheduler, registry, ani_defs)
 
             self.assertIsNotNone(scheduler.get_job("Alist2Strm:AV"))
-            self.assertIsNotNone(scheduler.get_job("Ani2Alist:AV"))
 
     async def test_run_updates_state(self) -> None:
         with TemporaryDirectory() as temp_dir:

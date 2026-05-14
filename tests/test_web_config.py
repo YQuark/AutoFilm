@@ -37,7 +37,8 @@ class TestWebConfigApi(unittest.TestCase):
             fake_settings = self.make_settings(temp_dir)
             fake_settings.CONFIG.write_text(
                 "Settings:\n  password: secret\nAlist2StrmList:\n"
-                "  - id: AV\n    password: pass\n    token: alist-token\n",
+                "  - id: AV\n    password: pass\n    token: alist-token\n"
+                "Ani2AlistList:\n  - id: legacy\n",
                 encoding="utf-8",
             )
 
@@ -46,6 +47,8 @@ class TestWebConfigApi(unittest.TestCase):
                 raw = config_api.read_config_text(reveal=False)
 
             self.assertEqual(summary["settings"]["password"], "***")
+            self.assertNotIn("ani2alist", summary["counts"])
+            self.assertNotIn("ani2alist", summary)
             self.assertIn("token: '***'", raw)
             self.assertIn("password: '***'", raw)
 
@@ -140,6 +143,7 @@ class TestWebConfigRoutes(unittest.TestCase):
             self.assertIn("配置", response.text)
             self.assertIn("日志", response.text)
             self.assertIn("搜索任务", response.text)
+            self.assertNotIn("Ani2Alist", response.text)
             self.assertNotIn(">Dashboard<", response.text)
             self.assertNotIn(">Tasks<", response.text)
             self.assertNotIn(">Refresh<", response.text)

@@ -23,9 +23,22 @@ class TestSettingManager(unittest.TestCase):
 
             self.assertFalse(settings.DEBUG)
             self.assertEqual(settings.AlistServerList, [])
-            self.assertEqual(settings.Ani2AlistList, [])
             self.assertTrue(settings.CONFIG_DIR.exists())
             self.assertTrue(settings.LOG_DIR.exists())
+
+    def test_legacy_ani2alist_section_is_ignored(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            base_dir = Path(temp_dir)
+            config_dir = base_dir / "config"
+            config_dir.mkdir()
+            (config_dir / "config.yaml").write_text(
+                "Ani2AlistList:\n  - id: old\n",
+                encoding="utf-8",
+            )
+
+            settings = TempSettingManager(base_dir)
+
+            self.assertEqual(settings.AlistServerList, [])
 
     def test_empty_config_uses_safe_defaults(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -153,11 +153,6 @@ class SettingManager:
         return alist_server_list if isinstance(alist_server_list, list) else []
 
     @property
-    def Ani2AlistList(self) -> list[dict[str, Any]]:
-        ani2alist_list = self.__get_section("Ani2AlistList", [])
-        return ani2alist_list if isinstance(ani2alist_list, list) else []
-
-    @property
     def NotifierList(self) -> list[dict[str, Any]]:
         notifier_list = self.__get_section("NotifierList", [])
         return notifier_list if isinstance(notifier_list, list) else []
