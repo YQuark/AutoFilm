@@ -77,7 +77,7 @@ jobs:
         run: pip install -r requirements.txt mypy
 
       - name: Run mypy
-        run: mypy app/ --ignore-missing-imports
+        run: mypy app/ --ignore-missing-imports --explicit-package-bases
 
   security-lint:
     runs-on: ubuntu-latest

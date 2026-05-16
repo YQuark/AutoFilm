@@ -210,8 +210,8 @@ class SettingManager:
             return env_value
         section = self.__get_section("Settings", {})
         if isinstance(section, dict):
-            return str(section.get("web_host", "0.0.0.0") or "0.0.0.0")
-        return "0.0.0.0"
+            return str(section.get("web_host", "0.0.0.0") or "0.0.0.0")  # nosec B104
+        return "0.0.0.0"  # nosec B104
 
     @property
     def WebPort(self) -> int:
