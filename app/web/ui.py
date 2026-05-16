@@ -198,14 +198,22 @@ HTML = """<!doctype html>
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
+    .highlight-wrap textarea {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+      -webkit-text-fill-color: transparent;
+      caret-color: var(--text);
+    }
     .highlight-wrap .hl-backdrop {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
       padding: 13px;
       pointer-events: none;
-      color: transparent;
+      color: var(--text);
       overflow: hidden;
+      z-index: 0;
     }
     .hl-key { color: #0550ae; }
     .hl-str { color: #0a8a3d; }
@@ -421,8 +429,8 @@ HTML = """<!doctype html>
             </div>
             <div id="config-notice" class="notice">保存时会自动备份并原子替换 config.yaml。</div>
             <div class="highlight-wrap">
-              <textarea id="config-editor" spellcheck="false" aria-label="config.yaml 编辑器"></textarea>
               <pre class="hl-backdrop" id="hl-backdrop" aria-hidden="true"></pre>
+              <textarea id="config-editor" spellcheck="false" aria-label="config.yaml 编辑器"></textarea>
             </div>
           </div>
         </div>
