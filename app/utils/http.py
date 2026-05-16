@@ -289,7 +289,7 @@ class HTTPClient:
                     f"下载 {url} 失败：文件大小不一致，本地 {temp_file.stat().st_size}，远端 {file_size}"
                 )
             await to_thread(makedirs, file_path.parent, exist_ok=True)
-            copy2(temp_file, file_path)
+            await to_thread(copy2, temp_file, file_path)
 
     async def __download_chunk(
         self,
@@ -384,9 +384,9 @@ class RequestUtils:
     @classmethod
     def get_client(cls, *_, **__) -> HTTPClient:
         """
-        获取 HTTP 客户端
+        获取或创建共享的 HTTP 客户端实例。
+        （参数仅为兼容性保留，当前实现返回全局单例。）
 
-        :param url: 请求的 URL
         :return: HTTP 客户端
         """
         if cls.__client is None:

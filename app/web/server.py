@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
@@ -52,10 +52,10 @@ class _RateLimiter(BaseHTTPMiddleware):
     def _client_ip(self, request: Request) -> str:
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
-            # 取最右侧 IP（离服务最近的代理），防止伪造
+            # 取最左侧 IP（原始客户端），符合 RFC 7239
             parts = [ip.strip() for ip in forwarded.split(",")]
             if parts:
-                return parts[-1]
+                return parts[0]
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             return real_ip.strip()
@@ -194,7 +194,7 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
             return {"date": today, "lines": 0, "entries": []}
 
         try:
-            raw = log_path.read_text(encoding="utf-8")
+            raw = await asyncio.to_thread(log_path.read_text, encoding="utf-8")
         except OSError:
             return {"date": today, "lines": 0, "entries": []}
 
@@ -202,7 +202,7 @@ def create_app(registry: TaskRegistry, scheduler) -> FastAPI:
         selected = all_lines[-lines:]
         if level:
             level_upper = level.upper()
-            selected = [l for l in selected if f"【{level_upper}】" in l]
+            selected = [line for line in selected if f"【{level_upper}】" in line]
 
         return {"date": today, "lines": len(selected), "entries": selected}
 

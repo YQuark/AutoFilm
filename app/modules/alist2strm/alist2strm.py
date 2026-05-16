@@ -129,16 +129,11 @@ class Alist2Strm:
             )
             self.incremental_level = "file"
 
-    async def run(self) -> None:
-        """
-        处理主体
-        """
-        
-        # BDMV 处理相关变量初始化
-        self.bdmv_collections: dict[str, list[tuple[AlistPath, int]]] = {}  # BDMV目录 -> [(文件路径, 文件大小)]
-        self.bdmv_largest_files: dict[str, AlistPath] = {}  # BDMV目录 -> 最大文件路径
+    def _init_scan_state(self) -> None:
+        """初始化扫描状态变量、增量清单和计数器。"""
+        self.bdmv_collections: dict[str, list[tuple[AlistPath, int]]] = {}
+        self.bdmv_largest_files: dict[str, AlistPath] = {}
 
-        # 增量扫描清单
         if self.incremental:
             from app.modules.alist2strm.manifest import ScanManifest
             self.__manifest = ScanManifest(self.target_dir, self.task_id)
@@ -156,136 +151,119 @@ class Alist2Strm:
         self.__skipped_dir_count = 0
         self.__discovered_file_count = 0
         self.__processed_file_count = 0
+        self.processed_local_paths = set()
 
-        def on_directory_scanned(_dir_path: str, items: list[AlistPath]) -> None:
-            self.__scanned_dir_count += 1
-            self.__discovered_file_count += sum(1 for item in items if not item.is_dir)
+    def _on_dir_scanned(self, _dir_path: str, items: list[AlistPath]) -> None:
+        """目录扫描完成回调：更新统计计数器。"""
+        self.__scanned_dir_count += 1
+        self.__discovered_file_count += sum(1 for item in items if not item.is_dir)
 
-        def should_enter_dir(path: AlistPath) -> bool:
-            if (
-                self.__manifest is None
-                or self.incremental_level != "directory"
-                or self.overwrite
-            ):
-                return True
-
-            dir_key = self.__manifest.dir_key(path.full_path)
-            self.__manifest_keys.add(dir_key)
-            try:
-                if self.__manifest.is_changed(
-                    dir_key, path.modified_timestamp, path.size
-                ):
-                    self.__manifest.mark_directory(
-                        path.full_path, path.modified_timestamp, path.size
-                    )
-                    return True
-            except ValueError as e:
-                logger.warning(
-                    f"目录 {path.full_path} 修改时间解析失败，改为递归扫描：{e}"
-                )
-                return True
-
-            self.__skipped_dir_count += 1
-            self.__skipped_dir_prefixes.add(path.full_path)
-            logger.debug(f"目录 {path.full_path} 未变更，跳过子树扫描")
-            return False
-
-        def filter(path: AlistPath) -> bool:
-            """
-            过滤器
-            根据 Alist2Strm 配置判断是否需要处理该文件
-            将云盘上上的文件对应的本地文件路径保存至 self.processed_local_paths
-
-            :param path: AlistPath 对象
-            """
-
-            if path.is_dir:
-                return False
-
-            # 跳过系统文件夹和不需要的文件（按路径组件匹配，避免子串误伤）
-            if path.name in ("Thumbs.db", ".DS_Store") or "@eaDir" in path.full_path.split("/"):
-                return False
-
-            # 完全跳过 BDMV 文件夹内的所有文件（除了我们特殊处理的 .m2ts 文件）
-            if "/BDMV/" in path.full_path and not self._is_bdmv_file(path):
-                logger.debug(f"跳过 BDMV 文件夹内的文件: {path.name}")
-                return False
-
-            if path.suffix.lower() not in self.process_file_exts:
-                logger.debug(f"文件 {path.name} 不在处理列表中")
-                return False
-
-            # 检查是否为 BDMV 文件
-            if self._is_bdmv_file(path):
-                self._collect_bdmv_file(path)
-                # 暂时不处理，等收集完所有文件后再决定
-                return False
-
-            try:
-                local_path = self.__get_local_path(path)
-            except OSError as e:  # 可能是文件名过长
-                logger.warning(f"获取 {path.full_path} 本地路径失败：{e}")
-                return False
-
-            self.processed_local_paths.add(local_path)
-
-            # 增量扫描：记录 manifest key
-            if self.__manifest is not None:
-                self.__manifest_keys.add(path.full_path)
-
-            # 增量扫描：跳过未变更的文件（manifest 中有记录且 mtime+size 匹配）
-            if self.__manifest is not None and not self.overwrite:
-                if not self.__manifest.is_changed(
-                    path.full_path, path.modified_timestamp, path.size
-                ):
-                    try:
-                        if local_path.exists():
-                            return False
-                    except OSError:
-                        pass
-
-            if not self.overwrite:
-                try:
-                    local_stat = local_path.stat()
-                except OSError:
-                    return True  # 文件不存在或无法访问，需要处理
-
-                if path.suffix.lower() in IMAGE_EXTS:
-                    # 图片类：仅按大小判断，忽略 mtime（云存储 mtime 不可靠）
-                    if local_stat.st_size != path.size:
-                        logger.warning(
-                            f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
-                        )
-                        return True
-                elif path.suffix.lower() in self.download_exts:
-                    # 字幕/NFO/other_ext：保留 mtime 判断，size 改为 != 判断
-                    if local_stat.st_mtime < path.modified_timestamp:
-                        logger.debug(
-                            f"文件 {local_path.name} 已过期，需要重新处理 {path.full_path}"
-                        )
-                        return True
-                    if local_stat.st_size != path.size:
-                        logger.warning(
-                            f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
-                        )
-                        return True
-                logger.debug(
-                    f"文件 {local_path.name} 已存在，跳过处理 {path.full_path}"
-                )
-                return False
-
+    def _should_enter_dir(self, path: AlistPath) -> bool:
+        """判断是否需要进入目录子树进行扫描。"""
+        if (
+            self.__manifest is None
+            or self.incremental_level != "directory"
+            or self.overwrite
+        ):
             return True
 
+        dir_key = self.__manifest.dir_key(path.full_path)
+        self.__manifest_keys.add(dir_key)
+        try:
+            if self.__manifest.is_changed(
+                dir_key, path.modified_timestamp, path.size
+            ):
+                self.__manifest.mark_directory(
+                    path.full_path, path.modified_timestamp, path.size
+                )
+                return True
+        except ValueError as e:
+            logger.warning(
+                f"目录 {path.full_path} 修改时间解析失败，改为递归扫描：{e}"
+            )
+            return True
 
-        if self.mode == Alist2StrmMode.RawURL:
-            is_detail = True
-        else:
-            is_detail = False
+        self.__skipped_dir_count += 1
+        self.__skipped_dir_prefixes.add(path.full_path)
+        logger.debug(f"目录 {path.full_path} 未变更，跳过子树扫描")
+        return False
 
-        self.processed_local_paths = set()  # 云盘文件对应的本地文件路径
+    def _file_filter(self, path: AlistPath) -> bool:
+        """根据配置判断是否需要处理该文件，并记录本地路径用于后续清理。"""
+        if path.is_dir:
+            return False
 
-        # 第一阶段：收集所有文件信息并直接处理普通文件
+        if path.name in ("Thumbs.db", ".DS_Store") or "@eaDir" in path.full_path.split("/"):
+            return False
+
+        if "/BDMV/" in path.full_path.upper() and not self._is_bdmv_file(path):
+            logger.debug(f"跳过 BDMV 文件夹内的文件: {path.name}")
+            return False
+
+        if path.suffix.lower() not in self.process_file_exts:
+            logger.debug(f"文件 {path.name} 不在处理列表中")
+            return False
+
+        if self._is_bdmv_file(path):
+            self._collect_bdmv_file(path)
+            return False
+
+        try:
+            local_path = self.__get_local_path(path)
+        except OSError as e:
+            logger.warning(f"获取 {path.full_path} 本地路径失败：{e}")
+            return False
+
+        self.processed_local_paths.add(local_path)
+
+        if self.__manifest is not None:
+            self.__manifest_keys.add(path.full_path)
+
+        if self.__manifest is not None and not self.overwrite:
+            if not self.__manifest.is_changed(
+                path.full_path, path.modified_timestamp, path.size
+            ):
+                try:
+                    if local_path.exists():
+                        return False
+                except OSError:
+                    pass
+
+        if not self.overwrite:
+            try:
+                local_stat = local_path.stat()
+            except OSError:
+                return True
+
+            if path.suffix.lower() in IMAGE_EXTS:
+                if local_stat.st_size != path.size:
+                    logger.warning(
+                        f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
+                    )
+                    return True
+            elif path.suffix.lower() in self.download_exts:
+                if local_stat.st_mtime < path.modified_timestamp:
+                    logger.debug(
+                        f"文件 {local_path.name} 已过期，需要重新处理 {path.full_path}"
+                    )
+                    return True
+                if local_stat.st_size != path.size:
+                    logger.warning(
+                        f"文件 {local_path.name} 大小不一致（本地: {local_stat.st_size}, 远端: {path.size}），重新下载 {path.full_path}"
+                    )
+                    return True
+            logger.debug(
+                f"文件 {local_path.name} 已存在，跳过处理 {path.full_path}"
+            )
+            return False
+
+        return True
+
+    async def _stage1_scan_and_process(self) -> int:
+        """第一阶段：遍历 Alist 目录树并处理普通文件。返回处理的文件数。"""
+        is_detail = self.mode == Alist2StrmMode.RawURL
         process_count = 0
+
         async def process_with_limit(path: AlistPath) -> None:
             async with self.__max_workers:
                 await self.__file_processer(path)
@@ -295,28 +273,33 @@ class Alist2Strm:
                 dir_path=self.source_dir,
                 wait_time=self.wait_time,
                 is_detail=is_detail,
-                filter=filter,
-                dir_filter=should_enter_dir,
-                on_directory_scanned=on_directory_scanned,
+                filter=self._file_filter,
+                dir_filter=self._should_enter_dir,
+                on_directory_scanned=self._on_dir_scanned,
                 concurrency=self.scan_concurrency,
             ):
                 process_count += 1
                 if process_count % 100 == 0:
                     logger.info(f"处理进度：已发现 {process_count} 个待处理文件 ...")
-                # 直接处理普通文件，不需要额外的 list
                 tg.create_task(process_with_limit(path))
+
         logger.info(
             f"遍历完成：扫描目录 {self.__scanned_dir_count} 个，"
             f"跳过目录 {self.__skipped_dir_count} 个，"
             f"发现文件 {self.__discovered_file_count} 个，"
             f"待处理文件 {process_count} 个"
         )
+        return process_count
 
-        # 完成 BDMV 文件收集，确定最大文件
+    async def _stage2_process_bdmv(self) -> None:
+        """第二阶段：处理 BDMV 目录中收集的最大文件。"""
         self._finalize_bdmv_collections()
-        
-        # 第二阶段：处理 BDMV 最大文件
-        logger.info(f"开始处理 {len(self.bdmv_largest_files)} 个 BDMV 目录")
+
+        bdmv_count = len(self.bdmv_largest_files)
+        if bdmv_count == 0:
+            return
+        logger.info(f"开始处理 {bdmv_count} 个 BDMV 目录")
+
         for bdmv_root, largest_file in self.bdmv_largest_files.items():
             bdmv_key = f"bdmv:{bdmv_root}"
             if self.__manifest is not None:
@@ -334,26 +317,23 @@ class Alist2Strm:
                             continue
                     except OSError:
                         pass
+
             try:
                 logger.info(f"处理 BDMV 目录: {bdmv_root}")
                 logger.info(f"最大文件: {largest_file.full_path}")
-                
-                # 重新获取详细信息以确保有 raw_url
+
                 if self.mode == Alist2StrmMode.RawURL and not largest_file.raw_url:
                     logger.debug(f"重新获取 BDMV 文件详细信息: {largest_file.full_path}")
                     try:
                         updated_path = await self.client.async_api_fs_get(largest_file.full_path)
-                        # 保持原有的 full_path，只更新其他属性
                         original_full_path = largest_file.full_path
                         largest_file = updated_path
                         largest_file.full_path = original_full_path
                     except Exception as e:
                         logger.warning(f"重新获取 BDMV 文件详细信息失败: {e}")
-                
-                # 处理文件
+
                 await self.__file_processer(largest_file)
-                
-                # 添加到已处理路径列表
+
                 local_path = self.__get_local_path(largest_file)
                 self.processed_local_paths.add(local_path)
 
@@ -370,8 +350,8 @@ class Alist2Strm:
                 logger.error(f"详细错误信息: {traceback.format_exc()}")
                 continue
 
-        logger.info(f"文件处理完成：实际处理 {self.__processed_file_count} 个文件")
-
+    async def _stage3_cleanup_and_save(self) -> None:
+        """第三阶段：清理本地孤立文件并保存扫描清单。"""
         if self.sync_server and self.__skipped_dir_prefixes:
             logger.warning(
                 f"本轮目录级增量跳过了 {len(self.__skipped_dir_prefixes)} 个目录，"
@@ -388,6 +368,17 @@ class Alist2Strm:
             self.__manifest.save()
             logger.info(f"扫描清单已更新: {self.__manifest.entry_count} 个条目")
 
+    async def run(self) -> None:
+        """Alist2Strm 任务主入口。"""
+        self._init_scan_state()
+
+        await self._stage1_scan_and_process()
+        await self._stage2_process_bdmv()
+        await self._stage3_cleanup_and_save()
+
+        logger.info(
+            f"文件处理完成：实际处理 {self.__processed_file_count} 个文件"
+        )
         logger.info("Alist2Strm 处理完成")
 
     async def __file_processer(self, path: AlistPath) -> None:
@@ -601,7 +592,7 @@ class Alist2Strm:
         :param path: AlistPath 对象
         :return: 是否为 BDMV 文件
         """
-        return "/BDMV/STREAM/" in path.full_path and path.suffix.lower() == ".m2ts"
+        return "/BDMV/STREAM/" in path.full_path.upper() and path.suffix.lower() == ".m2ts"
 
     def _get_bdmv_root_dir(self, path: AlistPath) -> str:
         """
@@ -611,7 +602,7 @@ class Alist2Strm:
         :return: BDMV 根目录路径
         """
         full_path = path.full_path
-        bdmv_index = full_path.find("/BDMV/")
+        bdmv_index = full_path.upper().find("/BDMV/")
         if bdmv_index != -1:
             return full_path[:bdmv_index]
         return ""

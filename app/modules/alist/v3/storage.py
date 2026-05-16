@@ -32,11 +32,11 @@ class AlistStorage(BaseModel):
     webdav_policy: str = "native_proxy"  # WebDAV 策略
     down_proxy_url: str = ""  # 下载代理 URL
 
-    def set_addition_by_dict(self, additon: dict) -> None:
+    def set_addition_by_dict(self, addition: dict) -> None:
         """
         使用 Python 字典设置 Storage 附加信息
         """
-        self.addition = dumps(additon)
+        self.addition = dumps(addition)
 
     @property
     def addition2dict(self) -> dict:

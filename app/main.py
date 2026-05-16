@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import signal
 import traceback
 from datetime import datetime
 from sys import path
@@ -227,6 +228,23 @@ async def main() -> None:
     logger.info(f"AutoFilm {settings.APP_VERSION} 启动中...")
     logger.debug(f"是否开启 DEBUG 模式: {settings.DEBUG}")
 
+    # 设置优雅关闭
+    shutdown_event = asyncio.Event()
+    background_tasks: list[asyncio.Task] = []
+
+    def _signal_handler() -> None:
+        if not shutdown_event.is_set():
+            logger.info("收到终止信号，正在优雅关闭...")
+            shutdown_event.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _signal_handler)
+        except NotImplementedError:
+            # Windows 不支持 add_signal_handler，回退到 signal.signal
+            signal.signal(sig, lambda signum, frame: _signal_handler())
+
     scheduler = AsyncIOScheduler()
 
     alist_configs: list[dict[str, Any]] = list(settings.AlistServerList)
@@ -244,23 +262,44 @@ async def main() -> None:
 
     if settings.HotReloadEnabled:
         logger.info(f"配置文件热重载已启用，检查间隔: {settings.HotReloadInterval}s")
-        asyncio.create_task(
-            _hot_reload_watcher(
-                scheduler,
-                registry,
-                alist_configs,
-                settings.HotReloadInterval,
+        background_tasks.append(
+            asyncio.create_task(
+                _hot_reload_watcher(
+                    scheduler,
+                    registry,
+                    alist_configs,
+                    settings.HotReloadInterval,
+                )
             )
         )
     else:
         logger.info("配置文件热重载已禁用")
 
     if settings.WebEnabled:
-        asyncio.create_task(_start_web_server(registry, scheduler))
+        background_tasks.append(asyncio.create_task(_start_web_server(registry, scheduler)))
     else:
         logger.info("Web 服务已禁用")
 
-    await asyncio.Event().wait()
+    # 等待关闭信号
+    await shutdown_event.wait()
+
+    # 优雅关闭流程
+    logger.info("正在优雅关闭 AutoFilm...")
+
+    # 1. 关闭 APScheduler
+    try:
+        scheduler.shutdown(wait=False)
+        logger.debug("APScheduler 已关闭")
+    except Exception:
+        pass
+
+    # 2. 取消所有后台任务
+    for task in background_tasks:
+        task.cancel()
+    if background_tasks:
+        await asyncio.gather(*background_tasks, return_exceptions=True)
+
+    logger.info("AutoFilm 已关闭")
 
 
 if __name__ == "__main__":

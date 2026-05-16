@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_call:
 
 jobs:
   lint:
@@ -59,3 +60,39 @@ jobs:
 
       - name: Run security audit
         run: pip-audit -r requirements.txt
+
+  type-check:
+    runs-on: ubuntu-latest
+    name: Type Check
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt mypy
+
+      - name: Run mypy
+        run: mypy app/ --ignore-missing-imports
+
+  security-lint:
+    runs-on: ubuntu-latest
+    name: Security Lint
+    steps:
+      - name: Clone Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install bandit
+
+      - name: Run bandit
+        run: bandit -r app/ -ll

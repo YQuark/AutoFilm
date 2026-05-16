@@ -42,6 +42,8 @@ class AlistClient(metaclass=Multiton):
         self.__token_lock = Lock()  # 保护 token 刷新的异步锁
         self.base_path = ""
         self.id = 0
+        self.__username = ""
+        self._password = ""
 
         if not url.startswith("http"):
             url = "https://" + url

@@ -22,4 +22,6 @@ class Alist2StrmMode(Enum):
         for member_name, member_value in cls.__members__.items():
             if member_name.lower() == mode_str.lower():
                 return member_value
+        from app.core import logger
+        logger.warning(f"未识别的 Alist2Strm 模式 '{mode_str}'，已回退为 AlistURL")
         return cls.AlistURL

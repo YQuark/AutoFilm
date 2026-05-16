@@ -1,7 +1,4 @@
-from app.utils.singleton import Singleton
-
-
-class AlistUtils(metaclass=Singleton):
+class AlistUtils:
     """
     Alist 相关工具
     """
@@ -22,6 +19,9 @@ class AlistUtils(metaclass=Singleton):
             i = start_index
             while i < len(lines):
                 line = lines[i]
+                if not line.strip():
+                    i += 1
+                    continue
                 current_indent = len(line) - len(line.lstrip())
 
                 if current_indent > indent_level:

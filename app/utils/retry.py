@@ -4,13 +4,12 @@ from time import sleep
 from functools import wraps
 
 from app.core.log import logger
-from app.utils.singleton import Singleton
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-class Retry(metaclass=Singleton):
+class Retry:
     """
     重试装饰器
     """
@@ -48,7 +47,7 @@ class Retry(metaclass=Singleton):
                         return func(*args, **kwargs)
                     except exception as e:
                         if attempt < tries - 1:
-                            _delay = (attempt + 1) * backoff * delay
+                            _delay = delay * (backoff ** attempt)
                             logger.warning(cls.WARNING_MSG.format(e, _delay))
                             sleep(_delay)
                         else:
@@ -86,7 +85,7 @@ class Retry(metaclass=Singleton):
                         return await func(*args, **kwargs)
                     except exception as e:
                         if attempt < tries - 1:
-                            _delay = (attempt + 1) * backoff * delay
+                            _delay = delay * (backoff ** attempt)
                             logger.warning(cls.WARNING_MSG.format(e, _delay))
                             await async_sleep(_delay)
                         else:

@@ -13,6 +13,14 @@ from app.core.state import TaskStateStore
 from app.utils.notify import send_notification
 
 
+async def _safe_notify_async(title: str, body: str, level: str = "info") -> None:
+    """异步发送通知，失败时仅记录日志不抛出异常。"""
+    try:
+        await send_notification(title, body, level)
+    except Exception:
+        logger.debug(f"通知发送失败: {title}")
+
+
 @dataclass(frozen=True)
 class TaskDefinition:
     module_name: str
@@ -119,12 +127,13 @@ class TaskRegistry:
             raise TaskAlreadyRunningError(f"任务正在运行：{definition.key}")
 
         async with lock:
-            await send_notification(
+            await _safe_notify_async(
                 f"{definition.module_name} 任务开始",
                 f"任务 [{definition.task_id}] 开始执行",
             )
-            self._state_store.mark_started(definition.key)
+
             try:
+                self._state_store.mark_started(definition.key)
                 task = definition.task_cls(**definition.config)
                 await task.run()
             except Exception as e:
@@ -133,7 +142,7 @@ class TaskRegistry:
                 )
                 logger.debug(traceback.format_exc())
                 self._state_store.mark_finished(definition.key, False, str(e))
-                await send_notification(
+                await _safe_notify_async(
                     f"{definition.module_name} 任务失败",
                     f"任务 [{definition.task_id}] 执行失败：{e}",
                     "error",
@@ -141,7 +150,7 @@ class TaskRegistry:
                 return False
 
             self._state_store.mark_finished(definition.key, True)
-            await send_notification(
+            await _safe_notify_async(
                 f"{definition.module_name} 任务完成",
                 f"任务 [{definition.task_id}] 执行成功",
                 "success",

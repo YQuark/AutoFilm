@@ -61,7 +61,7 @@ class TRFileHandler(TimedRotatingFileHandler):
             self.__get_log_filname(),
             when="midnight",
             interval=1,
-            backupCount=0,
+            backupCount=30,
             encoding=encoding,
         )
 
@@ -82,85 +82,26 @@ class TRFileHandler(TimedRotatingFileHandler):
         return (self.log_dir / f"{current_date}.log").as_posix()
 
 
-class LoggerManager:
-    """
-    日志管理器
-    """
+def _setup_logger() -> logging.Logger:
+    logger_ = logging.getLogger(settings.APP_NAME)
+    logger_.setLevel(logging.DEBUG)
 
-    def __init__(self) -> None:
-        """
-        初始化 LoggerManager 对象
-        """
+    console_formatter = CustomFormatter(file_formatter=False, fmt=FMT)
+    file_formatter = CustomFormatter(file_formatter=True, fmt=FMT)
 
-        self.__logger = logging.getLogger(settings.APP_NAME)
-        self.__logger.setLevel(logging.DEBUG)
+    level = logging.DEBUG if settings.DEBUG else logging.INFO
 
-        console_formatter = CustomFormatter(
-            file_formatter=False,
-            fmt=FMT,
-        )
-        file_formatter = CustomFormatter(
-            file_formatter=True,
-            fmt=FMT,
-        )
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_handler.setFormatter(console_formatter)
+    logger_.addHandler(console_handler)
 
-        level = logging.DEBUG if settings.DEBUG else logging.INFO
+    file_handler = TRFileHandler(log_dir=settings.LOG_DIR, encoding="utf-8")
+    file_handler.setLevel(level)
+    file_handler.setFormatter(file_formatter)
+    logger_.addHandler(file_handler)
 
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
-        console_handler.setFormatter(console_formatter)
-        self.__logger.addHandler(console_handler)
-
-        file_handler = TRFileHandler(log_dir=settings.LOG_DIR, encoding="utf-8")
-        file_handler.setLevel(level)
-        file_handler.setFormatter(file_formatter)
-        self.__logger.addHandler(file_handler)
-
-    def __log(self, method: str, msg: str, *args, **kwargs) -> None:
-        """
-        获取模块的logger
-        :param method: 日志方法
-        :param msg: 日志信息
-        """
-        if hasattr(self.__logger, method):
-            getattr(self.__logger, method)(msg, *args, **kwargs)
-
-    def info(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载info方法
-        """
-        self.__log("info", msg, *args, **kwargs)
-
-    def debug(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载debug方法
-        """
-        self.__log("debug", msg, *args, **kwargs)
-
-    def warning(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载warning方法
-        """
-        self.__log("warning", msg, *args, **kwargs)
-
-    def warn(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载warn方法
-        """
-        self.__log("warning", msg, *args, **kwargs)
-
-    def error(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载error方法
-        """
-        self.__log("error", msg, *args, **kwargs)
-
-    def critical(self, msg: str, *args, **kwargs) -> None:
-        """
-        重载critical方法
-        """
-        self.__log("critical", msg, *args, **kwargs)
+    return logger_
 
 
-# 初始化公共日志
-logger = LoggerManager()
+logger = _setup_logger()

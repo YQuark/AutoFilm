@@ -147,10 +147,28 @@ class SettingManager:
         else:
             return self.LOG_DIR / "AutoFilm.log"
 
+    @staticmethod
+    def _apply_env_overrides(server: dict[str, Any]) -> dict[str, Any]:
+        """对 Alist 服务器配置应用环境变量覆盖（敏感字段）。"""
+        sid = str(server.get("id", "")).strip()
+        if not sid:
+            return server
+        prefix = "AUTOFILM_ALIST_" + "".join(
+            c if c.isalnum() else "_" for c in sid
+        ).upper() + "_"
+        result = dict(server)
+        for field in ("token", "password", "username", "url"):
+            env_val = getenv(prefix + field.upper())
+            if env_val:
+                result[field] = env_val
+        return result
+
     @property
     def AlistServerList(self) -> list[dict[str, Any]]:
         alist_server_list = self.__get_section("Alist2StrmList", [])
-        return alist_server_list if isinstance(alist_server_list, list) else []
+        if not isinstance(alist_server_list, list):
+            return []
+        return [self._apply_env_overrides(s) for s in alist_server_list]
 
     @property
     def NotifierList(self) -> list[dict[str, Any]]:
