@@ -205,6 +205,7 @@ HTML = """<!doctype html>
       padding: 13px;
       pointer-events: none;
       color: transparent;
+      overflow: hidden;
     }
     .hl-key { color: #0550ae; }
     .hl-str { color: #0a8a3d; }
@@ -370,7 +371,7 @@ HTML = """<!doctype html>
           <div class="toolbar" style="margin-bottom:10px">
             <h2 style="margin-right:auto" id="history-title">运行历史</h2>
             <button id="back-to-tasks" class="ghost hidden" type="button">← 返回任务列表</button>
-            <button id="clear-history" class="ghost" type="button">清空</button>
+            <button id="clear-history" class="ghost" type="button">清除显示</button>
           </div>
           <div id="run-history" class="empty-state">请选择一个任务。</div>
         </div>
@@ -483,7 +484,7 @@ HTML = """<!doctype html>
     </main>
   </div>
   <script>
-    const state = { tasks: [], summary: null, backups: [], editorDirty: false, currentPage: "dashboard", sortField: null, sortDir: "asc", historyKey: null };
+    const state = { tasks: [], summary: null, backups: [], editorDirty: false, currentPage: "dashboard", sortField: null, sortDir: "asc", historyKey: null, logEntries: [] };
     const $ = (id) => document.getElementById(id);
     function setText(id, text) { if ($(id)) $(id).textContent = text; }
     function fmt(value) { return value || ""; }
@@ -554,8 +555,12 @@ HTML = """<!doctype html>
       } catch (error) {
         setText("health-line", "服务不可用");
       }
-      await loadTasks();
-      await loadSummary();
+      try {
+        await loadTasks();
+        await loadSummary();
+      } catch (error) {
+        // 静默处理，各渲染函数自行管理 UI 状态
+      }
       if (state.currentPage === "config" && state.editorDirty) return;
     }
     async function loadTasks() {
@@ -688,14 +693,19 @@ HTML = """<!doctype html>
       setText("history-title", `运行历史：${moduleName}:${taskId}`);
       $("back-to-tasks").classList.remove("hidden");
       $("run-history").innerHTML = "正在加载…";
-      const data = await api(`/api/tasks/${encodeURIComponent(moduleName)}/${encodeURIComponent(taskId)}/runs`);
-      $("run-history").innerHTML = data.history.length ? data.history.map((run) => `
-        <div class="panel" style="margin-top:10px">
-          <strong>${run.success ? '<span class="success-text">成功</span>' : '<span class="error-text">失败</span>'}</strong>
-          <span class="muted" style="margin-left:8px">耗时 ${duration(run.started_at, run.finished_at)}</span>
-          <div class="muted">${escapeHtml(run.started_at || "")} → ${escapeHtml(run.finished_at || "")}</div>
-          <div class="error-text">${escapeHtml(run.error || "")}</div>
-        </div>`).join("") : '<div class="empty-state">暂无历史记录</div>';
+      try {
+        const data = await api(`/api/tasks/${encodeURIComponent(moduleName)}/${encodeURIComponent(taskId)}/runs`);
+        $("run-history").innerHTML = data.history.length ? data.history.map((run) => `
+          <div class="panel" style="margin-top:10px">
+            <strong>${run.success ? '<span class="success-text">成功</span>' : '<span class="error-text">失败</span>'}</strong>
+            <span class="muted" style="margin-left:8px">耗时 ${duration(run.started_at, run.finished_at)}</span>
+            <div class="muted">${escapeHtml(run.started_at || "")} → ${escapeHtml(run.finished_at || "")}</div>
+            <div class="error-text">${escapeHtml(run.error || "")}</div>
+          </div>`).join("") : '<div class="empty-state">暂无历史记录</div>';
+      } catch (error) {
+        $("run-history").innerHTML = `<div class="error-text">加载失败：${escapeHtml(error.message)}</div>`;
+        toast(error.message, "error");
+      }
       showPage("tasks");
     }
     function renderRecent() {
@@ -747,9 +757,17 @@ HTML = """<!doctype html>
         ${(state.summary.alist2strm || []).map((task) => `<div class="notice" style="margin-top:8px"><strong>${escapeHtml(task.id)}</strong><div class="muted">${escapeHtml(task.mode || "")} · ${escapeHtml(task.source_dir || "")} → ${escapeHtml(task.target_dir || "")}</div></div>`).join("") || '<div class="empty-state">暂无任务</div>'}`;
       if (!$("cfg-web-enabled").dataset.frozen) {
         $("cfg-web-enabled").value = String(Boolean(settings.web_enabled));
+      }
+      if (!$("cfg-web-host").dataset.frozen) {
         $("cfg-web-host").value = settings.web_host || "0.0.0.0";
+      }
+      if (!$("cfg-web-port").dataset.frozen) {
         $("cfg-web-port").value = settings.web_port || 8000;
+      }
+      if (!$("cfg-hot-reload").dataset.frozen) {
         $("cfg-hot-reload").value = String(settings.hot_reload !== false);
+      }
+      if (!$("cfg-hot-reload-interval").dataset.frozen) {
         $("cfg-hot-reload-interval").value = settings.hot_reload_interval || 30;
       }
     }
@@ -757,10 +775,10 @@ HTML = """<!doctype html>
       $("backups").innerHTML = state.backups.length ? state.backups.map((backup) => `
         <div class="notice" style="margin-top:8px">
           <div style="display:flex; justify-content:space-between; align-items:center">
-            <div><strong>${escapeHtml(backup.name)}</strong><div class="muted">${escapeHtml(backup.modified)} · ${backup.size} 字节</div></div>
+            <div><strong>${escapeHtml(backup.name)}</strong><div class="muted">${escapeHtml(backup.modified)} · ${escapeHtml(String(backup.size))} 字节</div></div>
             <div style="display:flex; gap:6px">
-              <button class="restore-btn ghost" type="button" data-name="${escapeHtml(backup.name)}">恢复</button>
-              <button class="delete-btn ghost" type="button" data-name="${escapeHtml(backup.name)}" style="color:var(--bad)">删除</button>
+              <button class="restore-btn ghost" type="button" data-name="${backup.name}">恢复</button>
+              <button class="delete-btn ghost" type="button" data-name="${backup.name}" style="color:var(--bad)">删除</button>
             </div>
           </div>
         </div>`).join("") : '<div class="empty-state">暂无备份</div>';
@@ -785,12 +803,29 @@ HTML = """<!doctype html>
       catch (e) { raw = { content: "" }; }
       const oldLines = (raw.content || "").split("\\n");
       const newLines = content.split("\\n");
-      const added = newLines.filter((l) => !oldLines.includes(l)).length;
-      const removed = oldLines.filter((l) => !newLines.includes(l)).length;
+      const maxLen = Math.max(oldLines.length, newLines.length);
+      const MAX_DIFF_LINES = 60;
+      let diffHtml = [];
+      let shown = 0;
+      for (let i = 0; i < maxLen && shown < MAX_DIFF_LINES; i++) {
+        if (i >= oldLines.length) {
+          diffHtml.push(`<div class="diff-added">+ ${escapeHtml(newLines[i])}</div>`);
+        } else if (i >= newLines.length) {
+          diffHtml.push(`<div class="diff-removed">- ${escapeHtml(oldLines[i])}</div>`);
+        } else if (oldLines[i] !== newLines[i]) {
+          diffHtml.push(`<div class="diff-removed">- ${escapeHtml(oldLines[i])}</div>`);
+          diffHtml.push(`<div class="diff-added">+ ${escapeHtml(newLines[i])}</div>`);
+          shown++;
+        } else {
+          diffHtml.push(`<div>  ${escapeHtml(oldLines[i])}</div>`);
+        }
+        shown++;
+      }
+      const truncated = maxLen > MAX_DIFF_LINES ? `<div class="muted">... 仅显示前 ${MAX_DIFF_LINES} 行</div>` : "";
       $("diff-box-content").innerHTML = `
         <h3>确认保存配置？</h3>
-        <p>与服务器当前配置对比：</p>
-        <p><span class="diff-added">+${added} 行新增</span> · <span class="diff-removed">-${removed} 行删除</span></p>
+        <p>变更预览：</p>
+        <div style="font-family:monospace;font-size:12px;max-height:40vh;overflow-y:auto;background:var(--surface-2);padding:10px;border-radius:6px;white-space:pre-wrap">${diffHtml.join("\\n")}${truncated}</div>
         <p class="muted">保存后原配置将自动备份。</p>
         <div class="toolbar" style="margin-top:14px">
           <button id="diff-cancel" type="button">取消</button>
@@ -854,7 +889,6 @@ HTML = """<!doctype html>
           body: JSON.stringify(payload),
         });
         toast(`常用设置已保存。备份：${result.backup || "无"}`, "success");
-        state.editorDirty = false;
         await loadConfig();
       } catch (error) {
         toast(error.message, "error");
@@ -887,26 +921,30 @@ HTML = """<!doctype html>
     async function runAll() {
       const toRun = state.tasks.filter((t) => !t.running);
       if (!toRun.length) { toast("没有可运行的任务", "info"); return; }
-      let ok = 0, err = 0;
-      for (const task of toRun) {
-        try {
-          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} });
-          ok++;
-        } catch (e) { err++; }
-      }
+      $("run-all").disabled = true;
+      const results = await Promise.allSettled(
+        toRun.map((task) =>
+          api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} })
+        )
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const err = results.filter((r) => r.status === "rejected").length;
+      $("run-all").disabled = false;
       await loadTasks();
       toast(`已触发：${ok} 成功，${err} 失败`, ok > 0 ? "success" : "error");
     }
     async function runFailed() {
       const failed = state.tasks.filter((t) => t.last_result === "error" && !t.running);
       if (!failed.length) { toast("没有失败的任务", "info"); return; }
-      let ok = 0, err = 0;
-      for (const task of failed) {
-        try {
-          await api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} });
-          ok++;
-        } catch (e) { err++; }
-      }
+      $("run-failed").disabled = true;
+      const results = await Promise.allSettled(
+        failed.map((task) =>
+          api(`/api/tasks/${encodeURIComponent(task.module)}/${encodeURIComponent(task.id)}/run`, { method: "POST", headers: {} })
+        )
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const err = results.filter((r) => r.status === "rejected").length;
+      $("run-failed").disabled = false;
       await loadTasks();
       toast(`重试完毕：${ok} 成功，${err} 失败`, ok > 0 ? "success" : "error");
     }
@@ -914,8 +952,7 @@ HTML = """<!doctype html>
     function highlightYAML() {
       const text = $("config-editor").value;
       if (!text) { $("hl-backdrop").innerHTML = ""; return; }
-      const escaped = escapeHtml(text);
-      const highlighted = escaped.split("\\n").map((line) => {
+      const highlighted = text.split("\\n").map((line) => {
         if (/^\\s*#/.test(line)) return `<span class="hl-comment">${line}</span>`;
         return line.replace(/(\\s*)([\\w-]+)(:)/g, (_, sp, key, col) => {
           const rest = line.slice(sp.length + key.length + col.length);
@@ -937,8 +974,9 @@ HTML = """<!doctype html>
       const level = $("log-level").value;
       try {
         const data = await api(`/api/logs?lines=${lines}${level ? "&level=" + level : ""}`);
+        state.logEntries = data.entries;
         const search = ($("log-search").value || "").toLowerCase();
-        let entries = data.entries;
+        let entries = state.logEntries;
         if (search) entries = entries.filter((l) => l.toLowerCase().includes(search));
         $("log-content").innerHTML = entries.length
           ? entries.map((line) => {
@@ -955,9 +993,18 @@ HTML = """<!doctype html>
     }
     // Keyboard shortcuts
     document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("diff-overlay").classList.contains("show")) {
+        $("diff-overlay").classList.remove("show");
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === "r") { e.preventDefault(); loadAll(); }
-      if (mod && e.key === "s") { e.preventDefault(); if (state.currentPage === "config") saveConfig(); }
+      if (mod && e.key === "s") {
+        if (state.currentPage === "config") {
+          e.preventDefault();
+          saveConfig();
+        }
+      }
       if (!mod && !e.target.closest("input,textarea,select")) {
         const pages = ["dashboard", "tasks", "config", "logs", "settings"];
         const num = parseInt(e.key);
@@ -1003,10 +1050,29 @@ HTML = """<!doctype html>
     $("refresh-logs").addEventListener("click", loadLogs);
     $("log-level").addEventListener("change", () => { if (state.currentPage === "logs") loadLogs(); });
     $("log-lines").addEventListener("change", () => { if (state.currentPage === "logs") loadLogs(); });
-    $("log-search").addEventListener("input", () => { if (state.currentPage === "logs") loadLogs(); });
+    $("log-search").addEventListener("input", () => {
+      if (state.currentPage !== "logs") return;
+      const search = ($("log-search").value || "").toLowerCase();
+      const entries = state.logEntries || [];
+      const filtered = search
+        ? entries.filter((l) => l.toLowerCase().includes(search))
+        : entries;
+      $("log-content").innerHTML = filtered.length
+        ? filtered.map((line) => {
+            let cls = "log-line-info";
+            if (line.includes("【ERROR】")) cls = "log-line-error";
+            else if (line.includes("【WARNING】")) cls = "log-line-warn";
+            else if (line.includes("【DEBUG】")) cls = "log-line-debug";
+            return `<div class="${cls}">${escapeHtml(line)}</div>`;
+          }).join("\\n")
+        : '<div class="empty-state">无匹配日志</div>';
+    });
     $("diff-overlay").addEventListener("click", (e) => { if (e.target === $("diff-overlay")) $("diff-overlay").classList.remove("show"); });
-    ["cfg-web-enabled", "cfg-web-host", "cfg-web-port", "cfg-hot-reload", "cfg-hot-reload-interval"].forEach((id) => {
+    ["cfg-web-host", "cfg-web-port", "cfg-hot-reload-interval"].forEach((id) => {
       $(id).addEventListener("input", () => { $(id).dataset.frozen = "1"; });
+    });
+    ["cfg-web-enabled", "cfg-hot-reload"].forEach((id) => {
+      $(id).addEventListener("change", () => { $(id).dataset.frozen = "1"; });
     });
     applyPrefs();
     loadAll();
